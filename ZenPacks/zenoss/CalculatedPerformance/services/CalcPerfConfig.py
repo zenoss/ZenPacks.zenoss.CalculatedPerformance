@@ -43,10 +43,7 @@ class CalcPerfConfig(CollectorConfigService):
 
         perfServer = device.getPerformanceServer()
 
-        self._getDataPoints(proxy, device, device.id, None, perfServer)
-        proxy.thresholds += device.getThresholdInstances(DSTYPE)
-
-        for component in device.getMonitoredComponents():
+        for component in [device] + device.getMonitoredComponents():
             self._getDataPoints(proxy, component, component.device().id, component.id, perfServer)
             proxy.thresholds += component.getThresholdInstances(DSTYPE)
 
