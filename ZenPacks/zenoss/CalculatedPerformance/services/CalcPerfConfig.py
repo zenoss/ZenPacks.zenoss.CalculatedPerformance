@@ -12,7 +12,7 @@ from Products.ZenCollector.services.config import CollectorConfigService
 
 from ZenPacks.zenoss.CalculatedPerformance.datasources.CalculatedPerformanceDataSource import CalculatedPerformanceDataSource
 
-DSTYPE = CalculatedPerformance.sourcetype
+DSTYPE = CalculatedPerformanceDataSource.sourcetype
 
 def dotTraverse(base, path):
     """ 
@@ -69,7 +69,7 @@ class CalcPerfConfig(CollectorConfigService):
                     compId=componentId,
                     dsId=ds.id,
                     dpId=dp.id,
-                    formula=ds.formula,
+                    expression=ds.expression,
                     obj_attrs=obj_attrs,
                     path='/'.join((deviceOrComponent.rrdPath(), dp.name())),
                     rrdType=dp.rrdtype,
