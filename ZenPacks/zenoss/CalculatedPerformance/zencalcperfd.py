@@ -31,9 +31,8 @@ from Products.ZenHub.services.PerformanceConfig import SnmpConnInfo
 from Products.ZenUtils.observable import ObservableMixin
 from Products.ZenUtils.Utils import unused
 
-from ZenPacks.zenoss.CalculatedPerformance.services.CalcPerfConfig import DeviceCalcPerf
-unused(DeviceCalcPerf)
-
+from Products.ZenCollector.services.config import DeviceProxy
+unused(DeviceProxy)
 
 
 COLLECTOR_NAME = "zencalcperfd"
