@@ -1,6 +1,6 @@
 ######################################################################
 #
-# Copyright 2007 Zenoss, Inc.  All Rights Reserved.
+# Copyright 2011 Zenoss, Inc.  All Rights Reserved.
 #
 ######################################################################
 
@@ -16,7 +16,7 @@ class DeviceCalcPerf(pb.Copyable, pb.RemoteCopy):
     thresholds = ()
 pb.setUnjellyableForClass(DeviceCalcPerf, DeviceCalcPerf)
 
-class CalcPerf(PerformanceConfig):
+class CalcPerfConfig(PerformanceConfig):
 
     def remote_getCalcPerfs(self, devId=None):
         log.debug('CalcPerf.remote_getCalcPerfs')
