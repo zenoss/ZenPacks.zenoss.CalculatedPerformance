@@ -1,80 +1,84 @@
 ######################################################################
 #
-# Copyright 2011 Zenoss, Inc.  All Rights Reserved.
+# Copyright 2009-2010 Zenoss, Inc.  All Rights Reserved.
 #
 ######################################################################
 
-from Products.ZenHub.services.PerformanceConfig import PerformanceConfig
 import transaction
-import logging
-log = logging.getLogger("zenhub")
 
-from twisted.spread import pb
-class DeviceCalcPerf(pb.Copyable, pb.RemoteCopy):
-    device = None
-    txs = ()
-    thresholds = ()
-pb.setUnjellyableForClass(DeviceCalcPerf, DeviceCalcPerf)
+from Acquisition import aq_base
+from Products.CMFCore.utils import getToolByName
+from Products.ZenCollector.services.config import CollectorConfigService
 
-class CalcPerfConfig(PerformanceConfig):
+from ZenPacks.zenoss.CalculatedPerformance.datasources.CalculatedPerformanceDataSource import CalculatedPerformanceDataSource
 
-    def remote_getCalcPerfs(self, devId=None):
-        log.debug('CalcPerf.remote_getCalcPerfs')
-        result = []
-        for dev in self.config.devices():
-            if not devId or devId == dev.id:
-                 dev = dev.primaryAq()
-                 cfg = self.getDeviceCalcPerfs(dev)
-                 if cfg:
-                     result.append(cfg)
-        return result
+DSTYPE = CalculatedPerformanc.sourcetype
 
-    def getDeviceCalcPerfs(self, dev):
-        result = None
-        log.debug('Getting webtxs for %s' % dev.id)
-        if not dev.monitorDevice():
-            log.debug('CalcPerf: not monitoring %s' % dev.id)
-            return result
-        cfg = DeviceCalcPerf()
-        cfg.device = dev.id
-        cfg.txs = []
-        cfg.thresholds = []
-        for templ in dev.getRRDTemplates():
-            dataSources = templ.getRRDDataSources('CalcPerf')
-            for ds in [d for d in dataSources if d.enabled]:
-                result = cfg
-                points = [{'id': dp.id, 
-                           'path': '/'.join((dev.rrdPath(), dp.name())),
-                           'rrdType': dp.rrdtype,
-                           'rrdCmd': dp.createCmd,
-                           'minv': dp.rrdmin,
-                           'maxv': dp.rrdmax,
-                           }
-                          for dp in ds.getRRDDataPoints()]
-                cfg.thresholds += dev.getThresholdInstances('CalcPerf')
-                cfg.txs.append({ 'devId': dev.id,
-                                 'manageIp': dev.manageIp,
-                                 'timeout': ds.webTxTimeout,
-                                 'datasource': ds.id,
-                                 'datapoints': points,
-                                 'cycletime': ds.cycletime or '',
-                                 'compId': ds.component or '',
-                                 'eventClass': ds.eventClass or '',
-                                 'severity': ds.severity or 0,
-                                 'userAgent': ds.userAgent or '',
-                                 'initialUrl': ds.initialURL or '',
-                                 'command': ds.getCommand(dev) or '',
-                                 })
-        log.debug('%s webtxs for %s', len(cfg.txs), dev.id)
-        return result
+def dotTraverse(base, path):
+    """ 
+    Traverse object attributes with a . separating attributes.
+    e.g., base=find("deviceId") ; dotTraverse(base, "hw.totalMemory")
+        --> 2137460736
+    """
+    path = path.split(".")
+    while len(path) > 0:
+        try:
+            base = getattr(base, path.pop(0))
+        except:
+            return None
+    return base 
 
+class CalcPerfConfig(CollectorConfigService):
 
-    def getDeviceConfig(self, device):
-        "How to get the config for a device"
-        return self.getDeviceCalcPerfs(device)
+    def _createDeviceProxy(self, device):
+        proxy = CollectorConfigService._createDeviceProxy(self, device)
 
+        # The event daemon keeps a persistent connection open, so this cycle
+        # interval will only be used if the connection is lost... for now, it
+        # doesn't need to be configurable.
+        proxy.configCycleInterval =  5 * 60 # seconds
 
-    def sendDeviceConfig(self, listener, config):
-        "How to send the config to a device, probably via callRemote"
-        return listener.callRemote('updateDeviceConfig', [config])
+        proxy.datapoints = []
+        proxy.thresholds = []
+
+        perfServer = device.getPerformanceServer()
+
+        self._getDataPoints(proxy, device, device.id, None, perfServer)
+        proxy.thresholds += device.getThresholdInstances(DSTYPE)
+
+        for component in device.getMonitoredComponents():
+            self._getDataPoints(proxy, component, component.device().id, component.id, perfServer)
+            proxy.thresholds += component.getThresholdInstances(DSTYPE)
+
+        return proxy
+
+    def _getDataPoints(self, proxy, deviceOrComponent, deviceId, componentId, perfServer):
+        for template in deviceOrComponent.getRRDTemplates():
+            dataSources = [ds for ds
+                           in template.getRRDDataSources(DSTYPE)
+                           if ds.enabled]
+
+            obj_attrs = {}
+
+            for att in re.findall(r"[A-Za-z][A-Za-z0-9_\.]*", ds.formula):
+                value = dotTraverse(deviceOrComponent, att)
+                if value is not None:
+                    obj_attrs[att] = value
+
+            for ds in dataSources:
+                dp = ds.datapoints()[0]
+                dpInfo = dict(
+                    devId=deviceId,
+                    compId=componentId,
+                    dsId=ds.id,
+                    dpId=dp.id,
+                    formula=ds.formula,
+                    obj_attrs=obj_attrs,
+                    path='/'.join((deviceOrComponent.rrdPath(), dp.name())),
+                    rrdType=dp.rrdtype,
+                    rrdCmd=dp.getRRDCreateCommand(perfServer),
+                    minv=dp.rrdmin,
+                    maxv=dp.rrdmax,)
+
+                proxy.datapoints.append(dpInfo)
 
