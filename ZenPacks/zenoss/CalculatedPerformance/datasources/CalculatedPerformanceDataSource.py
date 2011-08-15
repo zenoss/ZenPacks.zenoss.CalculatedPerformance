@@ -44,8 +44,8 @@ class CalculatedPerformanceDataSource(BasicDataSource, ZenPackPersistence):
 
     def getDescription(self):
         description = ''
-        if self.query:
-            description += self.query
+        if self.expression:
+            description += self.expression
         return description
 
     def useZenCommand(self):
