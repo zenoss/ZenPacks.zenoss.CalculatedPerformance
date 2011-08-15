@@ -12,7 +12,7 @@ from Products.ZenCollector.services.config import CollectorConfigService
 
 from ZenPacks.zenoss.CalculatedPerformance.datasources.CalculatedPerformanceDataSource import CalculatedPerformanceDataSource
 
-DSTYPE = CalculatedPerformanc.sourcetype
+DSTYPE = CalculatedPerformance.sourcetype
 
 def dotTraverse(base, path):
     """ 

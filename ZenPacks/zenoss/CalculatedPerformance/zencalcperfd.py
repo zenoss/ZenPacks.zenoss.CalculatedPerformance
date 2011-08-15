@@ -48,7 +48,7 @@ class CalculatedPerformancePreferences(object):
         self.collectorName = COLLECTOR_NAME
         self.defaultRRDCreateCommand = None
         self.configCycleInterval = 60 # minutes
-        self.cycleInterval = 60 * 60 * 12 # hours
+        self.cycleInterval = 60 # 1 minute
 
         self.configurationService = 'ZenPacks.zenoss.CalculatedPerformance.services.CalcPerfConfig'
 
@@ -98,6 +98,44 @@ class CalculatedPerformanceCollectionTask(ObservableMixin):
 
     def doTask(self):
         return defer.succeed("Yay!")
+
+    def fetchRrdData(self, dps):
+        for dataPointName, perfConfigs in dataPointConfigs.items():
+            for perfConfig in perfConfigs:
+                try:
+                    output = {}
+                    filePath = perfDir + '/Devices/' + perfConfig['filePath']
+                    output['filePath'] = filePath
+                    output['result'] = _fetch(
+                        filePath,
+                        'AVERAGE', # TODO: this won't be right for everything...
+                        timeRange
+                    )
+                    output['cf'] = 'LAST' # TODO: this won't be right for everything...
+                    output['values'] = values = {}
+                    output['dataPointName'] = perfConfig['dataPointName']
+                    yield output
+                except errors.MissingRrdFileError, err:
+                    LOG.warn('Missing RRD file: %s', err)
+                    continue
+                except (StandardError, rrdtool.error), err:
+                    if STOP_ON_ERROR:
+                        raise err
+                    else:
+                        LOG.error('Extract failed for %s (%s: %s)', 
+                                  perfConfig['dataPointName'],
+                                  err.__class__.__name__, 
+                                  err)
+                        LOG.debug(traceback.format_exc())
+                        continue
+    
+    def _fetch(filePath, consolidationFunction, timeRange):
+        """generate args for rrdtool.fetch based on the fetchSpec"""
+        if not os.path.isfile(filePath):
+            raise errors.MissingRrdFileError(filePath)
+        start = '-s %s' % timeutils.toUnixTime(timeRange[0])
+        end = '-e %s' % timeutils.toUnixTime(timeRange[1])
+        return rrdtool.fetch(filePath, str(consolidationFunction), start, end)
 
     def cleanup(self):
         pass
