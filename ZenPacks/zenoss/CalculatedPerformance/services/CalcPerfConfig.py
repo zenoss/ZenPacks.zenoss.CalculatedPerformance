@@ -4,6 +4,8 @@
 #
 ######################################################################
 
+import re
+
 import transaction
 
 from Acquisition import aq_base
@@ -57,13 +59,14 @@ class CalcPerfConfig(CollectorConfigService):
 
             obj_attrs = {}
 
-            for att in re.findall(r"[A-Za-z][A-Za-z0-9_\.]*", ds.formula):
-                value = dotTraverse(deviceOrComponent, att)
-                if value is not None:
-                    obj_attrs[att] = value
-
             for ds in dataSources:
+                for att in re.findall(r"[A-Za-z][A-Za-z0-9_\.]*", ds.expression):
+                    value = dotTraverse(deviceOrComponent, att)
+                    if value is not None:
+                        obj_attrs[att] = value
+
                 dp = ds.datapoints()[0]
+
                 dpInfo = dict(
                     devId=deviceId,
                     compId=componentId,

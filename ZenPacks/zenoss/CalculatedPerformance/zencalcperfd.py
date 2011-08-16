@@ -39,6 +39,32 @@ COLLECTOR_NAME = "zencalcperfd"
 
 log = logging.getLogger("zen.%s" % COLLECTOR_NAME)
 
+class SimpleObject(object):
+    """
+    Simple class that can have arbitrary attributes assigned to it.
+    """
+
+def createDeviceDictiory(deviceProxy):
+    """
+    Returns a dictionary of simple objects suitable for passing into eval().
+    """
+
+    vars = {}
+
+    for dp in deviceProxy.datapoints:
+        for key, value in dp['obj_attrs'].items():
+            # For example, turn here.hw.totalMemory=1024 into:
+            # vars['here'].hw.totalMemory = 1024
+            # This way, vars can be passed in to eval
+            parts = key.split(".")
+            base = vars[parts[0]] = SimpleObject()
+            for part in parts[1:-1]:
+                if not hasattr(base, part):
+                    setattr(base, part, SimpleObject())
+                base = getattr(base, part)
+            setattr(base, parts[-1], value)
+
+    return vars
 
 class CalculatedPerformancePreferences(object):
     implements(ICollectorPreferences)
