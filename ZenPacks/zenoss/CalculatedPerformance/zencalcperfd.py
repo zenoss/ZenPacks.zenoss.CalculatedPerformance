@@ -7,7 +7,10 @@
 import logging
 import sys
 import re
+import os.path
 from time import ctime, time
+
+import rrdtool
 
 from twisted.python.failure import Failure
 from twisted.internet import defer, error
@@ -22,22 +25,27 @@ from Products.ZenCollector.daemon import CollectorDaemon
 from Products.ZenCollector.interfaces import ICollectorPreferences,\
                                              IEventService,\
                                              IScheduledTask,\
-                                             ICollector
+                                             ICollector, \
+                                             IDataService
 from Products.ZenCollector.tasks import SimpleTaskFactory,\
                                         SimpleTaskSplitter,\
                                         TaskStates
 
 from Products.ZenHub.services.PerformanceConfig import SnmpConnInfo
 from Products.ZenUtils.observable import ObservableMixin
-from Products.ZenUtils.Utils import unused
+from Products.ZenUtils.Utils import unused, zenPath
 
 from Products.ZenCollector.services.config import DeviceProxy
 unused(DeviceProxy)
 
+from ZenPacks.zenoss.CalculatedPerformance.services.CalcPerfConfig import getVarNames
 
 COLLECTOR_NAME = "zencalcperfd"
 
 log = logging.getLogger("zen.%s" % COLLECTOR_NAME)
+
+class MissingRrdFileError(StandardError):
+    """RRD file is missing from the filesystem."""
 
 class SimpleObject(object):
     """
@@ -122,48 +130,54 @@ class CalculatedPerformanceCollectionTask(ObservableMixin):
         self._lastErrorMsg = ''
 
     def doTask(self):
-        return defer.succeed("Yay!")
+        rrdStart = 'now-600s'
+        rrdEnd = 'now'
+        perfDir = zenPath('perf')
 
-    def fetchRrdData(self, dps):
-        for dataPointName, perfConfigs in dataPointConfigs.items():
-            for perfConfig in perfConfigs:
-                try:
-                    output = {}
-                    filePath = perfDir + '/Devices/' + perfConfig['filePath']
-                    output['filePath'] = filePath
-                    output['result'] = _fetch(
-                        filePath,
-                        'AVERAGE', # TODO: this won't be right for everything...
-                        timeRange
-                    )
-                    output['cf'] = 'LAST' # TODO: this won't be right for everything...
-                    output['values'] = values = {}
-                    output['dataPointName'] = perfConfig['dataPointName']
-                    yield output
-                except errors.MissingRrdFileError, err:
-                    LOG.warn('Missing RRD file: %s', err)
-                    continue
-                except (StandardError, rrdtool.error), err:
-                    if STOP_ON_ERROR:
-                        raise err
-                    else:
-                        LOG.error('Extract failed for %s (%s: %s)', 
-                                  perfConfig['dataPointName'],
-                                  err.__class__.__name__, 
-                                  err)
-                        LOG.debug(traceback.format_exc())
-                        continue
-    
-    def _fetch(filePath, consolidationFunction, timeRange):
-        """generate args for rrdtool.fetch based on the fetchSpec"""
-        if not os.path.isfile(filePath):
-            raise errors.MissingRrdFileError(filePath)
-        start = '-s %s' % timeutils.toUnixTime(timeRange[0])
-        end = '-e %s' % timeutils.toUnixTime(timeRange[1])
-        return rrdtool.fetch(filePath, str(consolidationFunction), start, end)
+        for datapoint in self._device.datapoints:
+            expression = datapoint['expression']
+            obj_attrs = datapoint['obj_attrs']
+            # We will populate this with perf metrics and pass to eval()
+            vars = createDeviceDictionary(self._device)
+
+            rrd_paths = datapoint['rrd_paths']
+            varNames = getVarNames(expression)
+
+            # If a variable is in the expression, but not the dict of object
+            #   attributes, assume it is an RRD variable.
+            rrdNames = [varName for varName in varNames
+                if varName not in obj_attrs.keys()]
+
+            log.debug("Perf to get: %s", rrdNames)
+            import pdb ; pdb.set_trace()
+            for rrdName in rrdNames:
+                filePath = os.path.join(perfDir, rrd_paths[rrdName])
+                values = rrdtool.fetch(filePath,
+                                       'AVERAGE',
+                                       "-s " + rrdStart,
+                                       "-e " + rrdEnd)[2]
+                for value in reversed(values):
+                    value = value[0]
+                    if value is not None:
+                        break
+                if value is None:
+                    value = 0
+                log.debug("RRD %s = %s", rrdName, value)
+                vars[rrdName] = value
+
+            result = eval(expression, vars)
+            log.info("Result of %s --> %s", expression, result)
+            dpPath = '/'.join((rrdPath, rrdConf.dpName))
+            min = rrdConf.min
+            max = rrdConf.max
+            value = self._dataService.writeRRD(dpPath, dpValue, rrdConf.rrdType,
+                                  rrdConf.command, min=min, max=max)
+        
+        return defer.succeed("Yay!")
 
     def cleanup(self):
         pass
+
 
     def displayStatistics(self):
         """

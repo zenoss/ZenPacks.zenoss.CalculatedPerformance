@@ -30,6 +30,10 @@ def dotTraverse(base, path):
             return None
     return base 
 
+varNameRe = re.compile(r"[A-Za-z][A-Za-z0-9_\.]*")
+def getVarNames(expression):
+    return varNameRe.findall(expression)
+
 class CalcPerfConfig(CollectorConfigService):
 
     def _createDeviceProxy(self, device):
@@ -58,12 +62,19 @@ class CalcPerfConfig(CollectorConfigService):
                            if ds.enabled]
 
             obj_attrs = {}
+            rrd_paths = {}
 
             for ds in dataSources:
-                for att in re.findall(r"[A-Za-z][A-Za-z0-9_\.]*", ds.expression):
+                for att in getVarNames(ds.expression):
                     value = dotTraverse(deviceOrComponent, att)
                     if value is not None:
                         obj_attrs[att] = value
+                    elif att in [d.id for d in deviceOrComponent.getRRDDataPoints()]:
+                        rrd_paths[att] = deviceOrComponent.getRRDFileName(att)
+                    else:
+                        raise Exception("Calculated Performance expression "
+                            "%s references in invalid variable, %s",
+                            ds.expression, att)
 
                 dp = ds.datapoints()[0]
 
@@ -74,6 +85,7 @@ class CalcPerfConfig(CollectorConfigService):
                     dpId=dp.id,
                     expression=ds.expression,
                     obj_attrs=obj_attrs,
+                    rrd_paths=rrd_paths,
                     path='/'.join((deviceOrComponent.rrdPath(), dp.name())),
                     rrdType=dp.rrdtype,
                     rrdCmd=dp.getRRDCreateCommand(perfServer),
