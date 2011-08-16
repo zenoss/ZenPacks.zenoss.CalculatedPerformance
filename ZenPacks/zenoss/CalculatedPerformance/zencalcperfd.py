@@ -161,10 +161,17 @@ class CalculatedPerformanceCollectionTask(ObservableMixin):
                         break
                 if value is None:
                     value = 0
+                    log.debug("Unable to fetch %s for %s", rrdName, self._devId)
+
                 log.debug("RRD %s = %s", rrdName, value)
                 vars[rrdName] = value
 
-            result = eval(expression, vars)
+            try:
+                result = eval(expression, vars)
+            except Exception, e:
+                log.exception("Expression %s failed:", expression)
+                continue
+
             log.info("Result of %s --> %s", expression, result)
 
             dpPath = os.path.join(perfDir, datapoint['path'])
