@@ -44,7 +44,7 @@ class SimpleObject(object):
     Simple class that can have arbitrary attributes assigned to it.
     """
 
-def createDeviceDictiory(deviceProxy):
+def createDeviceDictionary(deviceProxy):
     """
     Returns a dictionary of simple objects suitable for passing into eval().
     """
