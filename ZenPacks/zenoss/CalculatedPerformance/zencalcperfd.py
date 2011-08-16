@@ -149,7 +149,6 @@ class CalculatedPerformanceCollectionTask(ObservableMixin):
                 if varName not in obj_attrs.keys()]
 
             log.debug("Perf to get: %s", rrdNames)
-            import pdb ; pdb.set_trace()
             for rrdName in rrdNames:
                 filePath = os.path.join(perfDir, rrd_paths[rrdName])
                 values = rrdtool.fetch(filePath,
@@ -167,11 +166,13 @@ class CalculatedPerformanceCollectionTask(ObservableMixin):
 
             result = eval(expression, vars)
             log.info("Result of %s --> %s", expression, result)
-            dpPath = '/'.join((rrdPath, rrdConf.dpName))
-            min = rrdConf.min
-            max = rrdConf.max
-            value = self._dataService.writeRRD(dpPath, dpValue, rrdConf.rrdType,
-                                  rrdConf.command, min=min, max=max)
+
+            dpPath = os.path.join(perfDir, datapoint['path'])
+            min = datapoint['minv']
+            max = datapoint['maxv']
+            value = self._dataService.writeRRD(dpPath, result,
+                datapoint['rrdType'], datapoint['rrdCmd'],
+                min=datapoint['minv'], max=datapoint['maxv'])
         
         return defer.succeed("Yay!")
 
