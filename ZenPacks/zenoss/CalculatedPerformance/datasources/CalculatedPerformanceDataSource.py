@@ -32,27 +32,11 @@ class CalculatedPerformanceDataSource(BasicDataSource, ZenPackPersistence):
 
     security = ClassSecurityInfo()
 
-    def zmanage_editProperties(self, REQUEST=None):
-        '''validation, etc'''
-        if REQUEST:
-            self.addTotalTime()
-            if REQUEST.form.get('eventClass', '/') == '/':
-                REQUEST.form['eventClass'] = self.eventClass
-
-        return super(CalculatedDataSource, self).zmanage_editProperties(
-            REQUEST)
-
     def getDescription(self):
         description = ''
         if self.expression:
             description += self.expression
         return description
-
-    def useZenCommand(self):
-        return False
-
-    def getCommand(self, context):
-        pass
 
     security.declareProtected(ZEN_CHANGE_DEVICE, 'manage_testDataSource')
     def manage_testDataSource(self, testDevice, REQUEST):

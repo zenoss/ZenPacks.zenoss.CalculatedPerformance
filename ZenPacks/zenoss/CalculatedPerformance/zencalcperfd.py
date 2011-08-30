@@ -174,10 +174,10 @@ class CalculatedPerformanceCollectionTask(ObservableMixin):
 
             log.info("Result of %s --> %s", expression, result)
 
-            dpPath = os.path.join(perfDir, datapoint['path'])
+            #dpPath = os.path.join(perfDir, datapoint['path'])
             min = datapoint['minv']
             max = datapoint['maxv']
-            value = self._dataService.writeRRD(dpPath, result,
+            value = self._dataService.writeRRD(datapoint['path'], result,
                 datapoint['rrdType'], datapoint['rrdCmd'],
                 min=datapoint['minv'], max=datapoint['maxv'])
         

@@ -47,15 +47,14 @@ class CalcPerfConfig(CollectorConfigService):
         proxy.datapoints = []
         proxy.thresholds = []
 
-        perfServer = device.getPerformanceServer()
-
         for component in [device] + device.getMonitoredComponents():
-            self._getDataPoints(proxy, component, component.device().id, component.id, perfServer)
+            self._getDataPoints(proxy, component, component.device().id, component.id)
             proxy.thresholds += component.getThresholdInstances(DSTYPE)
 
-        return proxy
+        if len(proxy.datapoints) > 0:
+            return proxy
 
-    def _getDataPoints(self, proxy, deviceOrComponent, deviceId, componentId, perfServer):
+    def _getDataPoints(self, proxy, deviceOrComponent, deviceId, componentId):
         for template in deviceOrComponent.getRRDTemplates():
             dataSources = [ds for ds
                            in template.getRRDDataSources(DSTYPE)
@@ -88,7 +87,7 @@ class CalcPerfConfig(CollectorConfigService):
                     rrd_paths=rrd_paths,
                     path='/'.join((deviceOrComponent.rrdPath(), dp.name())),
                     rrdType=dp.rrdtype,
-                    rrdCmd=dp.getRRDCreateCommand(perfServer),
+                    rrdCmd=dp.getRRDCreateCommand(deviceOrComponent.getPerformanceServer()),
                     minv=dp.rrdmin,
                     maxv=dp.rrdmax,)
 
