@@ -44,9 +44,6 @@ COLLECTOR_NAME = "zencalcperfd"
 
 log = logging.getLogger("zen.%s" % COLLECTOR_NAME)
 
-class MissingRrdFileError(StandardError):
-    """RRD file is missing from the filesystem."""
-
 class SimpleObject(object):
     """
     Simple class that can have arbitrary attributes assigned to it.
@@ -151,10 +148,15 @@ class CalculatedPerformanceCollectionTask(ObservableMixin):
             log.debug("Perf to get: %s", rrdNames)
             for rrdName in rrdNames:
                 filePath = os.path.join(perfDir, rrd_paths[rrdName])
-                values = rrdtool.fetch(filePath,
-                                       'AVERAGE',
-                                       "-s " + rrdStart,
-                                       "-e " + rrdEnd)[2]
+
+                try:
+                    values = rrdtool.fetch(filePath,
+                                           'AVERAGE',
+                                           "-s " + rrdStart,
+                                           "-e " + rrdEnd)[2]
+                except Exception, e:
+                    log.error("Unable to read RRD file %s: %s", filePath, e)
+                    continue
                 for value in reversed(values):
                     value = value[0]
                     if value is not None:
@@ -181,7 +183,7 @@ class CalculatedPerformanceCollectionTask(ObservableMixin):
                 datapoint['rrdType'], datapoint['rrdCmd'],
                 min=datapoint['minv'], max=datapoint['maxv'])
         
-        return defer.succeed("Yay!")
+        return defer.succeed(True)
 
     def cleanup(self):
         pass
