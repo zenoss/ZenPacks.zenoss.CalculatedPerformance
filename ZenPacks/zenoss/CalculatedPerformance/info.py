@@ -14,6 +14,7 @@ class CalculatedPerformanceDataSourceInfo(RRDDataSourceInfo):
     implements(ICalculatedPerformanceDataSourceInfo)
 
     expression = ProxyProperty('expression')
+    cycletime = ProxyProperty('cycletime')
 
     @property
     def testable(self):

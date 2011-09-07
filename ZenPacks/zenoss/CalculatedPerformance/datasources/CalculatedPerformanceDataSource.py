@@ -4,6 +4,11 @@
 #
 ######################################################################
 
+__doc__ = """CalculatedPerformanceDataSource
+Custom datasource to calculate a datapoint based on existing RRD
+datapoints
+"""
+
 import cgi
 import time
 import sys
@@ -25,9 +30,11 @@ class CalculatedPerformanceDataSource(BasicDataSource, ZenPackPersistence):
     eventClass = '/Perf'
 
     expression = ''
+    cycletime = 60
 
     _properties = BasicDataSource._properties + (
-        {'id':'expression', 'type':'string', 'mode':'w'},
+         {'id':'expression', 'type':'string', 'mode':'w'},
+         {'id':'cycletime', 'type':'int', 'mode':'w'},
         )
 
     security = ClassSecurityInfo()

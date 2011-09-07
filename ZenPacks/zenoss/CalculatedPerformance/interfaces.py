@@ -11,4 +11,5 @@ from Products.Zuul.utils import ZuulMessageFactory as _t
 
 class ICalculatedPerformanceDataSourceInfo(IRRDDataSourceInfo):
     expression = schema.Text(title=_t(u'Expression'), group=_t('Detail'), xtype='twocolumntextarea')
+    cycletime = schema.Int(title=_t(u'Cycle Time (seconds)'))
 

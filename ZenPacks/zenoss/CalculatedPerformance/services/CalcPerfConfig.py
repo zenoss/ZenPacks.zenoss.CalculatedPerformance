@@ -1,15 +1,17 @@
 ######################################################################
 #
-# Copyright 2009-2010 Zenoss, Inc.  All Rights Reserved.
+# Copyright 2011 Zenoss, Inc.  All Rights Reserved.
 #
 ######################################################################
 
+__doc__ = """CalcPerfConfig
+Service for the zencalcperfd daemon that finds datasources that are
+explicitly computed from existing RRD values.
+"""
+
 import re
 
-import transaction
-
-from Acquisition import aq_base
-from Products.CMFCore.utils import getToolByName
+import Globals
 from Products.ZenCollector.services.config import CollectorConfigService
 
 from ZenPacks.zenoss.CalculatedPerformance.datasources.CalculatedPerformanceDataSource import CalculatedPerformanceDataSource
@@ -84,12 +86,27 @@ class CalcPerfConfig(CollectorConfigService):
                     dpId=dp.id,
                     expression=ds.expression,
                     obj_attrs=obj_attrs,
+                    cycletime=dp.cycletime,
                     rrd_paths=rrd_paths,
                     path='/'.join((deviceOrComponent.rrdPath(), dp.name())),
                     rrdType=dp.rrdtype,
                     rrdCmd=dp.getRRDCreateCommand(deviceOrComponent.getPerformanceServer()),
                     minv=dp.rrdmin,
                     maxv=dp.rrdmax,)
+                if not dpInfo['rrdCmd']:
+                    dpInfo['rrdCmd'] = deviceOrComponent.perfServer().getDefaultRRDCreateCommand()
 
                 proxy.datapoints.append(dpInfo)
+
+if __name__ == '__main__':
+    # Import directly if in Avalon
+    #from Products.ZenHub.ServiceTester import ServiceTester
+    from ZenPacks.zenoss.CalculatedPerformance.ServiceTester import ServiceTester
+    from pprint import pprint
+
+    tester = ServiceTester(CalcPerfConfig)
+    def printer(proxy):
+        pprint(proxy.datapoints)
+    tester.printDeviceProxy = printer
+    tester.showDeviceInfo()
 

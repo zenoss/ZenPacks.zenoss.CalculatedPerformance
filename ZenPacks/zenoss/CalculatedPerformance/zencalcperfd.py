@@ -4,18 +4,20 @@
 #
 ######################################################################
 
+__doc__ = """zencalcperfd
+Compute the values for a new datasource based on existing RRD values.
+
+Note
+There is the possibility of a race condition based on when data is written,
+but we are explicitily ignoring that possibility for the moment.
+"""
+
 import logging
-import sys
-import re
 import os.path
-from time import ctime, time
 
 import rrdtool
 
-from twisted.python.failure import Failure
-from twisted.internet import defer, error
-
-from pynetsnmp.twistedsnmp import snmpprotocol
+from twisted.internet import defer
 
 import Globals
 from zope.interface import implements
@@ -30,8 +32,8 @@ from Products.ZenCollector.interfaces import ICollectorPreferences,\
 from Products.ZenCollector.tasks import SimpleTaskFactory,\
                                         SimpleTaskSplitter,\
                                         TaskStates
+#                                        SubTaskSplitter,\
 
-from Products.ZenHub.services.PerformanceConfig import SnmpConnInfo
 from Products.ZenUtils.observable import ObservableMixin
 from Products.ZenUtils.Utils import unused, zenPath
 
@@ -49,11 +51,11 @@ class SimpleObject(object):
     Simple class that can have arbitrary attributes assigned to it.
     """
 
+
 def createDeviceDictionary(deviceProxy):
     """
     Returns a dictionary of simple objects suitable for passing into eval().
     """
-
     vars = {}
 
     for dp in deviceProxy.datapoints:
@@ -70,6 +72,7 @@ def createDeviceDictionary(deviceProxy):
             setattr(base, parts[-1], value)
 
     return vars
+
 
 class CalculatedPerformancePreferences(object):
     implements(ICollectorPreferences)
@@ -92,6 +95,8 @@ class CalculatedPerformancePreferences(object):
 
     def postStartup(self):
         pass
+
+#class CalcPerfSplitter(SubTaskSplitter):
 
 
 # TODO: When switching to Avalon, use BaseTask
@@ -177,17 +182,14 @@ class CalculatedPerformanceCollectionTask(ObservableMixin):
             log.info("Result of %s --> %s", expression, result)
 
             #dpPath = os.path.join(perfDir, datapoint['path'])
-            min = datapoint['minv']
-            max = datapoint['maxv']
             value = self._dataService.writeRRD(datapoint['path'], result,
                 datapoint['rrdType'], datapoint['rrdCmd'],
                 min=datapoint['minv'], max=datapoint['maxv'])
-        
+
         return defer.succeed(True)
 
     def cleanup(self):
         pass
-
 
     def displayStatistics(self):
         """
@@ -203,6 +205,7 @@ class CalculatedPerformanceCollectionTask(ObservableMixin):
 if __name__ == '__main__':
     myPreferences = CalculatedPerformancePreferences()
     myTaskFactory = SimpleTaskFactory(CalculatedPerformanceCollectionTask)
+    #myTaskSplitter = CalcPerfSplitter(myTaskFactory)
     myTaskSplitter = SimpleTaskSplitter(myTaskFactory)
     daemon = CollectorDaemon(myPreferences, myTaskSplitter)
     daemon.run()
