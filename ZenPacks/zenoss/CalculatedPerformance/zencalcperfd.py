@@ -132,13 +132,12 @@ class CalculatedPerformanceCollectionTask(ObservableMixin):
         self._lastErrorMsg = ''
 
     def doTask(self):
-        rrdStart = 'now-600s'
-        rrdEnd = 'now'
-        perfDir = zenPath('perf')
+        # TODO: set up so that we use deferreds to get better concurrency
 
         for datapoint in self._device.datapoints:
             expression = datapoint['expression']
             obj_attrs = datapoint['obj_attrs']
+
             # We will populate this with perf metrics and pass to eval()
             vars = createDeviceDictionary(self._device)
 
@@ -150,28 +149,7 @@ class CalculatedPerformanceCollectionTask(ObservableMixin):
             rrdNames = [varName for varName in varNames
                 if varName not in obj_attrs.keys()]
 
-            log.debug("Perf to get: %s", rrdNames)
-            for rrdName in rrdNames:
-                filePath = os.path.join(perfDir, rrd_paths[rrdName])
-
-                try:
-                    values = rrdtool.fetch(filePath,
-                                           'AVERAGE',
-                                           "-s " + rrdStart,
-                                           "-e " + rrdEnd)[2]
-                except Exception, e:
-                    log.error("Unable to read RRD file %s: %s", filePath, e)
-                    continue
-                for value in reversed(values):
-                    value = value[0]
-                    if value is not None:
-                        break
-                if value is None:
-                    value = 0
-                    log.debug("Unable to fetch %s for %s", rrdName, self._devId)
-
-                log.debug("RRD %s = %s", rrdName, value)
-                vars[rrdName] = value
+            self._fetchRrdValues(rrdNames, vars, rrd_paths)
 
             try:
                 result = eval(expression, vars)
@@ -180,13 +158,44 @@ class CalculatedPerformanceCollectionTask(ObservableMixin):
                 continue
 
             log.info("Result of %s --> %s", expression, result)
-
-            #dpPath = os.path.join(perfDir, datapoint['path'])
             value = self._dataService.writeRRD(datapoint['path'], result,
                 datapoint['rrdType'], datapoint['rrdCmd'],
                 min=datapoint['minv'], max=datapoint['maxv'])
 
-        return defer.succeed(True)
+        return defer.succeed("Gathered datapoint information")
+
+    def _fetchRrdValues(self, rrdNames, vars, rrd_paths):
+        # TODO: cache the values during the run so that we do less IO
+
+        # Grab all the data for the last 10 minutes and grab the latest
+        rrdStart = 'now-600s'
+        rrdEnd = 'now'
+        perfDir = zenPath('perf')
+
+        log.debug("Perf to get: %s", rrdNames)
+        for rrdName in rrdNames:
+            filePath = os.path.join(perfDir, rrd_paths[rrdName])
+
+            try:
+                values = self._dataService.readRRD(filePath,
+                                       'AVERAGE',
+                                       "-s " + rrdStart,
+                                       "-e " + rrdEnd)[2]
+            except Exception, e:
+                log.error("Unable to read RRD file %s: %s", filePath, e)
+                continue
+
+            for value in reversed(values):
+                value = value[0]
+                if value is not None:
+                    break
+
+            if value is None:
+                value = 0
+                log.debug("Unable to fetch %s for %s", rrdName, self._devId)
+
+            log.debug("RRD %s = %s", rrdName, value)
+            vars[rrdName] = value
 
     def cleanup(self):
         pass
