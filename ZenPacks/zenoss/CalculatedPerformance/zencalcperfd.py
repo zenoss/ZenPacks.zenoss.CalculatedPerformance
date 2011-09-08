@@ -9,7 +9,7 @@ Compute the values for a new datasource based on existing RRD values.
 
 Note
 There is the possibility of a race condition based on when data is written,
-but we are explicitily ignoring that possibility for the moment.
+and we are handling it by writing out the data every minute.
 """
 
 import logging
@@ -118,7 +118,9 @@ class CalculatedPerformanceCollectionTask(ObservableMixin):
         self.name = taskName
         self.configId = deviceId
         self.state = TaskStates.STATE_IDLE
-        self.interval = scheduledIntervalSeconds
+# TODO: get the correct interval scheduling stuff figured out
+        #self.interval = scheduledIntervalSeconds
+        self.interval = 60
         
         self._device = taskConfig
         self._devId = deviceId
@@ -160,6 +162,7 @@ class CalculatedPerformanceCollectionTask(ObservableMixin):
             log.info("Result of %s --> %s", expression, result)
             value = self._dataService.writeRRD(datapoint['path'], result,
                 datapoint['rrdType'], datapoint['rrdCmd'],
+                cycleTime=self.interval,
                 min=datapoint['minv'], max=datapoint['maxv'])
 
         return defer.succeed("Gathered datapoint information")
