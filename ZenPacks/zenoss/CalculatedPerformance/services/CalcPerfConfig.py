@@ -32,9 +32,14 @@ def dotTraverse(base, path):
             return None
     return base 
 
+
 varNameRe = re.compile(r"[A-Za-z][A-Za-z0-9_\.]*")
+# Valid keywords available for using in expressions
+keywords = ('and', 'or', 'not')
 def getVarNames(expression):
-    return varNameRe.findall(expression)
+    names = varNameRe.findall(expression)
+    return [name for name in names if name not in keywords]
+
 
 class CalcPerfConfig(CollectorConfigService):
 
@@ -74,8 +79,8 @@ class CalcPerfConfig(CollectorConfigService):
                         rrd_paths[att] = deviceOrComponent.getRRDFileName(att)
                     else:
                         raise Exception("Calculated Performance expression "
-                            "%s references in invalid variable, %s",
-                            ds.expression, att)
+                            "%s references in invalid variable: %s" % (
+                            ds.expression, att))
 
                 dp = ds.datapoints()[0]
 

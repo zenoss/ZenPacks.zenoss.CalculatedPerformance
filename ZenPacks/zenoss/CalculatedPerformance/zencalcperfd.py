@@ -159,8 +159,9 @@ class CalculatedPerformanceCollectionTask(ObservableMixin):
                 log.exception("Expression %s failed:", expression)
                 continue
 
-            log.info("Result of %s --> %s", expression, result)
-            value = self._dataService.writeRRD(datapoint['path'], result,
+            path = datapoint['path']
+            log.debug("Result of %s --> %s %s", expression, result, path)
+            value = self._dataService.writeRRD(path, result,
                 datapoint['rrdType'], datapoint['rrdCmd'],
                 #cycleTime=self.interval,
                 cycleTime=60,
@@ -186,7 +187,8 @@ class CalculatedPerformanceCollectionTask(ObservableMixin):
                                        "-s " + rrdStart,
                                        "-e " + rrdEnd)[2]
             except Exception, e:
-                log.error("Unable to read RRD file %s: %s", filePath, e)
+                log.debug("Unable to read RRD file %s: %s", filePath, e)
+                vars[rrdName] = None
                 continue
 
             for value in reversed(values):
