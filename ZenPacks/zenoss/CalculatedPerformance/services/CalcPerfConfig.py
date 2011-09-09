@@ -76,6 +76,7 @@ class CalcPerfConfig(CollectorConfigService):
             return proxy
 
     def _getDataPoints(self, proxy, deviceOrComponent, deviceId, componentId):
+        allDatapointNames = [d.id for d in deviceOrComponent.getRRDDataPoints()]
         for template in deviceOrComponent.getRRDTemplates():
             dataSources = [ds for ds
                            in template.getRRDDataSources(DSTYPE)
@@ -89,12 +90,12 @@ class CalcPerfConfig(CollectorConfigService):
                     value = dotTraverse(deviceOrComponent, att)
                     if value is not None:
                         obj_attrs[att] = value
-                    elif att in [d.id for d in deviceOrComponent.getRRDDataPoints()]:
+                    elif att in allDatapointNames:
                         rrd_paths[att] = deviceOrComponent.getRRDFileName(att)
                     else:
                         raise Exception("Calculated Performance expression "
-                            "%s references an invalid variable: %s" % (
-                            ds.expression, att))
+                            "%s references the variable %s which is not in %s" % (
+                            ds.expression, att, allDatapointNames))
 
                 dp = ds.datapoints()[0]
 
