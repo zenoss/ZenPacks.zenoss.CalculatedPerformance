@@ -13,6 +13,7 @@ from ZenPacks.zenoss.CalculatedPerformance.interfaces import ICalculatedPerforma
 class CalculatedPerformanceDataSourceInfo(RRDDataSourceInfo):
     implements(ICalculatedPerformanceDataSourceInfo)
 
+    description = ProxyProperty('description')
     expression = ProxyProperty('expression')
     cycletime = ProxyProperty('cycletime')
 

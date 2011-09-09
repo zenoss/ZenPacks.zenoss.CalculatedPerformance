@@ -29,10 +29,12 @@ class CalculatedPerformanceDataSource(BasicDataSource, ZenPackPersistence):
 
     eventClass = '/Perf'
 
+    description = ''
     expression = ''
     cycletime = 60
 
     _properties = BasicDataSource._properties + (
+         {'id':'description', 'type':'string', 'mode':'w'},
          {'id':'expression', 'type':'string', 'mode':'w'},
          {'id':'cycletime', 'type':'int', 'mode':'w'},
         )
@@ -42,7 +44,7 @@ class CalculatedPerformanceDataSource(BasicDataSource, ZenPackPersistence):
     def getDescription(self):
         description = ''
         if self.expression:
-            description += self.expression
+            description = self.expression
         return description
 
     security.declareProtected(ZEN_CHANGE_DEVICE, 'manage_testDataSource')

@@ -162,7 +162,8 @@ class CalculatedPerformanceCollectionTask(ObservableMixin):
             log.info("Result of %s --> %s", expression, result)
             value = self._dataService.writeRRD(datapoint['path'], result,
                 datapoint['rrdType'], datapoint['rrdCmd'],
-                cycleTime=self.interval,
+                #cycleTime=self.interval,
+                cycleTime=60,
                 min=datapoint['minv'], max=datapoint['maxv'])
 
         return defer.succeed("Gathered datapoint information")
