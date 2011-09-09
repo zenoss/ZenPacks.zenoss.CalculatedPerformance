@@ -15,8 +15,6 @@ and we are handling it by writing out the data every minute.
 import logging
 import os.path
 
-import rrdtool
-
 from twisted.internet import defer
 
 import Globals
@@ -56,7 +54,11 @@ def createDeviceDictionary(deviceProxy):
     """
     Returns a dictionary of simple objects suitable for passing into eval().
     """
-    vars = {}
+    # Add in default methods
+    vars = {
+        'pct': pct,
+        'avg': avg,
+    }
 
     for dp in deviceProxy.datapoints:
         for key, value in dp['obj_attrs'].items():
@@ -96,7 +98,40 @@ class CalculatedPerformancePreferences(object):
     def postStartup(self):
         pass
 
+
 #class CalcPerfSplitter(SubTaskSplitter):
+
+# These methods will be added to the evaluation locals for the calculated expressions
+def pct(numerator, denominator):
+    """
+    This method calculates the percentage of the numerator and denominator, which
+    can be either numerics or lists of numerics. None is filtered out.
+    The value 0.0 is returned if the denominatorList sums to zero.
+
+    sum(numerator) / sum(denominator) * 100.0
+    """
+    bottom = denominator if isinstance(denominator, (list, tuple)) else [denominator]
+    denominator = sum(x for x in bottom if x is not None)
+    if denominator == 0.0:
+        return 0.0
+
+    top = numerator if isinstance(numerator, (list, tuple)) else [numerator]
+    numerator = sum(x for x in top if x is not None)
+
+    return numerator / denominator * 100.0
+
+def avg(dpList):
+    """
+    Average a list of datapoints.  A list with no non-None items has an average of zero.
+    """
+    if not dpList:
+        return 0.0
+
+    dpList = [x for x in dpList if x is not None]
+    if not dpList:
+        return 0.0
+
+    return sum(dpList) / len(dpList)
 
 
 # TODO: When switching to Avalon, use BaseTask
@@ -155,13 +190,13 @@ class CalculatedPerformanceCollectionTask(ObservableMixin):
 
             try:
                 result = eval(expression, vars)
-            except Exception, e:
+            except Exception:
                 log.exception("Expression %s failed:", expression)
                 continue
 
             path = datapoint['path']
             log.debug("Result of %s --> %s %s", expression, result, path)
-            value = self._dataService.writeRRD(path, result,
+            self._dataService.writeRRD(path, result,
                 datapoint['rrdType'], datapoint['rrdCmd'],
                 #cycleTime=self.interval,
                 cycleTime=60,

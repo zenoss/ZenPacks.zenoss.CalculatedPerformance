@@ -10,6 +10,9 @@ explicitly computed from existing RRD values.
 """
 
 import re
+import logging
+
+log = logging.getLogger('zen.zenhub.service.calcperf')
 
 import Globals
 from Products.ZenCollector.services.config import CollectorConfigService
@@ -35,7 +38,13 @@ def dotTraverse(base, path):
 
 varNameRe = re.compile(r"[A-Za-z][A-Za-z0-9_\.]*")
 # Valid keywords available for using in expressions
-keywords = ('and', 'or', 'not')
+keywords = ('and', 'or', 'not', 'is', 'in',
+            'None', 'if', 'else', 'for', 'map',
+            'filter', 'lambda', 'range', 'sum',
+            'avg', 'pct', 'min', 'max',
+
+            # These are not keywords, but will be ignored so that lists can be used
+            'x', 'y', 'i', 'j')
 def getVarNames(expression):
     names = varNameRe.findall(expression)
     return [name for name in names if name not in keywords]
@@ -55,7 +64,12 @@ class CalcPerfConfig(CollectorConfigService):
         proxy.thresholds = []
 
         for component in [device] + device.getMonitoredComponents():
-            self._getDataPoints(proxy, component, component.device().id, component.id)
+            try:
+                self._getDataPoints(proxy, component, component.device().id, component.id)
+            except Exception, ex:
+                log.warn("Skipping %s component %s because %s",
+                         device.id, component.id, str(ex))
+                continue
             proxy.thresholds += component.getThresholdInstances(DSTYPE)
 
         if len(proxy.datapoints) > 0:
@@ -79,7 +93,7 @@ class CalcPerfConfig(CollectorConfigService):
                         rrd_paths[att] = deviceOrComponent.getRRDFileName(att)
                     else:
                         raise Exception("Calculated Performance expression "
-                            "%s references in invalid variable: %s" % (
+                            "%s references an invalid variable: %s" % (
                             ds.expression, att))
 
                 dp = ds.datapoints()[0]
@@ -102,6 +116,7 @@ class CalcPerfConfig(CollectorConfigService):
                     dpInfo['rrdCmd'] = deviceOrComponent.perfServer().getDefaultRRDCreateCommand()
 
                 proxy.datapoints.append(dpInfo)
+
 
 if __name__ == '__main__':
     # Import directly if in Avalon
