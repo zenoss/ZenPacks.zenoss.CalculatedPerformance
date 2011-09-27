@@ -190,6 +190,9 @@ class CalculatedPerformanceCollectionTask(ObservableMixin):
 
             try:
                 result = eval(expression, vars)
+            except ZeroDivisionError:
+                log.error("Expression %s failed: division by zero", expression)
+                continue
             except Exception:
                 log.exception("Expression %s failed:", expression)
                 continue
