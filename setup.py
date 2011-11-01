@@ -3,7 +3,7 @@
 # or saved.  Do not modify them directly here.
 # NB: PACKAGES is deprecated
 NAME = "ZenPacks.zenoss.CalculatedPerformance"
-VERSION = "1.0.3"
+VERSION = "1.0.4"
 AUTHOR = "Zenoss Labs"
 LICENSE = ""
 NAMESPACE_PACKAGES = ['ZenPacks', 'ZenPacks.zenoss']

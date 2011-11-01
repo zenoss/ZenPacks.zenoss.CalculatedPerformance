@@ -112,7 +112,9 @@ class CalcPerfConfig(CollectorConfigService):
                     rrdType=dp.rrdtype,
                     rrdCmd=dp.getRRDCreateCommand(deviceOrComponent.getPerformanceServer()),
                     minv=dp.rrdmin,
-                    maxv=dp.rrdmax,)
+                    maxv=dp.rrdmax,
+                    dsPath=ds.getPrimaryId(),
+                )
                 if not dpInfo['rrdCmd']:
                     dpInfo['rrdCmd'] = deviceOrComponent.perfServer().getDefaultRRDCreateCommand()
 
