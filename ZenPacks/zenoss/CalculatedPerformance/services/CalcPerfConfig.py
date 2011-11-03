@@ -88,10 +88,10 @@ class CalcPerfConfig(CollectorConfigService):
             for ds in dataSources:
                 for att in getVarNames(ds.expression):
                     value = dotTraverse(deviceOrComponent, att)
-                    if value is not None:
-                        obj_attrs[att] = value
-                    elif att in allDatapointNames:
+                    if att in allDatapointNames:
                         rrd_paths[att] = deviceOrComponent.getRRDFileName(att)
+                    elif value is not None:
+                        obj_attrs[att] = value
                     else:
                         raise Exception("Calculated Performance expression "
                             "%s references the variable %s which is not in %s" % (
