@@ -15,6 +15,7 @@ import sys
 
 from AccessControl import ClassSecurityInfo
 from Products.ZenModel.BasicDataSource import BasicDataSource
+from Products.ZenModel import RRDDataSource
 from Products.ZenModel.ZenPackPersistence import ZenPackPersistence
 from Products.ZenUtils.Utils import executeStreamCommand
 from Products.ZenModel.ZenossSecurity import ZEN_CHANGE_DEVICE
@@ -40,6 +41,14 @@ class CalculatedPerformanceDataSource(BasicDataSource, ZenPackPersistence):
         )
 
     security = ClassSecurityInfo()
+
+    def addDataPoints(self):
+        """
+        Overrides method definded in BasicDataSource.
+        """
+        
+        RRDDataSource.SimpleRRDDataSource.addDataPoints(self)
+
 
     def getDescription(self):
         description = ''
