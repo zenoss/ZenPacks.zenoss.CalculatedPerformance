@@ -4,12 +4,12 @@
 # NB: PACKAGES is deprecated
 NAME = "ZenPacks.zenoss.CalculatedPerformance"
 VERSION = "1.0.3"
-AUTHOR = ""
+AUTHOR = "Zenoss Labs"
 LICENSE = ""
 NAMESPACE_PACKAGES = ['ZenPacks', 'ZenPacks.zenoss']
 PACKAGES = ['ZenPacks', 'ZenPacks.zenoss', 'ZenPacks.zenoss.CalculatedPerformance']
 INSTALL_REQUIRES = []
-COMPAT_ZENOSS_VERS = ""
+COMPAT_ZENOSS_VERS = ">= 3.1.0"
 PREV_ZENPACK_NAME = ""
 # STOP_REPLACEMENTS
 ################################
