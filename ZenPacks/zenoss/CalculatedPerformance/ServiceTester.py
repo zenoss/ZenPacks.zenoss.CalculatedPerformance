@@ -1,18 +1,13 @@
-###########################################################################
+##############################################################################
 #
-# This program is part of Zenoss Core, an open source monitoring platform.
-# Copyright (C) 2011 Zenoss Inc.
+# Copyright (C) Zenoss, Inc. 2011, all rights reserved.
 #
-# This program is free software; you can redistribute it and/or modify it
-# under the terms of the GNU General Public License version 2 or (at your
-# option) any later version as published by the Free Software Foundation.
+# This content is made available according to terms specified in
+# License.zenoss under the directory where your Zenoss product is installed.
 #
-# For complete information please visit: http://www.zenoss.com/oss/
-#
-###########################################################################
+##############################################################################
 
-__doc__ = """ServiceTester
-
+"""
 Simple utility class for testing out zenhub services.
 Sample usage (at the bottom of a service):
 
@@ -38,6 +33,9 @@ log = logging.getLogger('zen.ServiceTester')
 import Globals
 
 from Products.ZenUtils.ZCmdBase import ZCmdBase
+from Products.ZenUtils.Utils import unused
+
+unused(Globals)
 
 
 class ServiceTester(ZCmdBase):
@@ -94,4 +92,3 @@ class ServiceTester(ZCmdBase):
         should be overwritten by the zenhub service writer.
         """
         pprint(proxy)
-

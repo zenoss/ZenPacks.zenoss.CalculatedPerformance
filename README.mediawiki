@@ -1,0 +1,39 @@
+This ZenPack performs calculations of device or component attributes and
+provides the results via a new data point value. The new value can then be
+plotted into a new or existing RRD graph. This extension will add a new
+daemon, ''zencalcperfd'', and a new data source, ''Calculated Performance''.
+
+As an example, a new data point might take the data from two other data points
+on the same template, average them and convert the result to a percentage
+using a modeled device attribute. More concretely, a network IpInterface can
+be used to take the total number of packets and divide that number by the
+total number of errors. The resulting value provides the percentage of errors
+on the interface over time.
+
+== Usage ==
+
+Once the CalculatedPerformance ZenPack is installed you can begin creating new
+data points.
+
+# Navigate to the template that you would like to modify.
+# From the Data Sources area, click the plus sign to add a new data source.
+# Provide a unique name for the data source and select ''Calculated Performance'' from the drop down list and select ''Submit''.
+# Double click on the new data source to edit the properties.
+# Specify the parameters for the data source.
+## ''Name'': The name of the data source
+## ''Expression'': Used to create the new data point value.
+##: For example, (hw.totalMemory – memAvailReal) / hw.totalMemory
+##: The above expression uses the totalMemory attribute modeled from the device and uses the RRD data point memAvailReal to calculate a percentage used.
+## ''Severity'': The severity to apply to the event.
+## ''Event Class'': The event class to which any events will be sent on errors.
+## ''Event Key'': Used to add uniqueness beyond device and component to event.
+# Click Save to create the data source and to automatically create a data point.
+
+You now have a new data point to utilize on your graphs that will be
+calculated every 60 seconds.
+
+Be aware that your expression can contain device attributes and RRD data
+points from the same class. These will be evaluated in the following order RRD
+data points followed by device attributes. So in the case where you have a
+attribute with the same name as an RRD data point the RRD data point
+information would be used to calculate the value.

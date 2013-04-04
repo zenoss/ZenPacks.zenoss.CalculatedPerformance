@@ -1,12 +1,15 @@
-######################################################################
+##############################################################################
 #
-# Copyright 2011 Zenoss, Inc.  All Rights Reserved.
+# Copyright (C) Zenoss, Inc. 2011, all rights reserved.
 #
-######################################################################
+# This content is made available according to terms specified in
+# License.zenoss under the directory where your Zenoss product is installed.
+#
+##############################################################################
 
-__doc__ = """CalculatedPerformanceDataSource
+"""
 Custom datasource to calculate a datapoint based on existing RRD
-datapoints
+datapoints.
 """
 
 import cgi
@@ -35,9 +38,9 @@ class CalculatedPerformanceDataSource(BasicDataSource, ZenPackPersistence):
     cycletime = 60
 
     _properties = BasicDataSource._properties + (
-         {'id':'description', 'type':'string', 'mode':'w'},
-         {'id':'expression', 'type':'string', 'mode':'w'},
-         {'id':'cycletime', 'type':'int', 'mode':'w'},
+        {'id': 'description', 'type': 'string', 'mode': 'w'},
+        {'id': 'expression', 'type': 'string', 'mode': 'w'},
+        {'id': 'cycletime', 'type': 'int', 'mode': 'w'},
         )
 
     security = ClassSecurityInfo()
@@ -46,9 +49,7 @@ class CalculatedPerformanceDataSource(BasicDataSource, ZenPackPersistence):
         """
         Overrides method definded in BasicDataSource.
         """
-        
         RRDDataSource.SimpleRRDDataSource.addDataPoints(self)
-
 
     def getDescription(self):
         description = ''
@@ -63,6 +64,7 @@ class CalculatedPerformanceDataSource(BasicDataSource, ZenPackPersistence):
         '''
         # set up the output method for our test
         out = REQUEST.RESPONSE
+
         def write(lines):
             ''' Output (maybe partial) result text.
             '''
@@ -148,4 +150,3 @@ class CalculatedPerformanceDataSource(BasicDataSource, ZenPackPersistence):
         write('')
         write('DONE in %s seconds' % long(time.time() - start))
         out.write(str(footer))
-

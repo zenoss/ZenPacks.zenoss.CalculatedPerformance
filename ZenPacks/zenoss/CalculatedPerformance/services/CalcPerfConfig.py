@@ -1,10 +1,13 @@
-######################################################################
+##############################################################################
 #
-# Copyright 2011 Zenoss, Inc.  All Rights Reserved.
+# Copyright (C) Zenoss, Inc. 2011, all rights reserved.
 #
-######################################################################
+# This content is made available according to terms specified in
+# License.zenoss under the directory where your Zenoss product is installed.
+#
+##############################################################################
 
-__doc__ = """CalcPerfConfig
+"""
 Service for the zencalcperfd daemon that finds datasources that are
 explicitly computed from existing RRD values.
 """
@@ -16,13 +19,17 @@ log = logging.getLogger('zen.zenhub.service.calcperf')
 
 import Globals
 from Products.ZenCollector.services.config import CollectorConfigService
+from Products.ZenUtils.Utils import unused
 
 from ZenPacks.zenoss.CalculatedPerformance.datasources.CalculatedPerformanceDataSource import CalculatedPerformanceDataSource
 
+unused(Globals)
+
 DSTYPE = CalculatedPerformanceDataSource.sourcetype
 
+
 def dotTraverse(base, path):
-    """ 
+    """
     Traverse object attributes with a . separating attributes.
     e.g., base=find("deviceId") ; dotTraverse(base, "hw.totalMemory")
         --> 2137460736
@@ -33,7 +40,7 @@ def dotTraverse(base, path):
             base = getattr(base, path.pop(0))
         except:
             return None
-    return base 
+    return base
 
 
 varNameRe = re.compile(r"[A-Za-z][A-Za-z0-9_\.]*")
@@ -45,6 +52,8 @@ keywords = ('and', 'or', 'not', 'is', 'in',
 
             # These are not keywords, but will be ignored so that lists can be used
             'x', 'y', 'i', 'j')
+
+
 def getVarNames(expression):
     names = varNameRe.findall(expression)
     return [name for name in names if name not in keywords]
@@ -58,7 +67,7 @@ class CalcPerfConfig(CollectorConfigService):
         # The event daemon keeps a persistent connection open, so this cycle
         # interval will only be used if the connection is lost... for now, it
         # doesn't need to be configurable.
-        proxy.configCycleInterval =  5 * 60 # seconds
+        proxy.configCycleInterval = 5 * 60  # seconds
 
         proxy.datapoints = []
         proxy.thresholds = []
@@ -93,9 +102,10 @@ class CalcPerfConfig(CollectorConfigService):
                     elif value is not None:
                         obj_attrs[att] = value
                     else:
-                        raise Exception("Calculated Performance expression "
-                            "%s references the variable %s which is not in %s" % (
-                            ds.expression, att, allDatapointNames))
+                        raise Exception(
+                            "Calculated Performance expression %s references "
+                            "the variable %s which is not in %s" % (
+                                ds.expression, att, allDatapointNames))
 
                 dp = ds.datapoints()[0]
 
@@ -128,8 +138,9 @@ if __name__ == '__main__':
     from pprint import pprint
 
     tester = ServiceTester(CalcPerfConfig)
+
     def printer(proxy):
         pprint(proxy.datapoints)
+
     tester.printDeviceProxy = printer
     tester.showDeviceInfo()
-

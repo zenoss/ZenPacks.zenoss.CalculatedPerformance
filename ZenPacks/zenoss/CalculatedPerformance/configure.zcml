@@ -1,9 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <configure xmlns="http://namespaces.zope.org/zope">
 
-  <adapter factory=".info.CalculatedPerformanceDataSourceInfo"
-           for=".datasources.CalculatedPerformanceDataSource.CalculatedPerformanceDataSource"
-           provides=".interfaces.ICalculatedPerformanceDataSourceInfo"
-           />
+    <adapter
+        provides=".interfaces.ICalculatedPerformanceDataSourceInfo"
+        for=".datasources.CalculatedPerformanceDataSource.CalculatedPerformanceDataSource"
+        factory=".info.CalculatedPerformanceDataSourceInfo"
+        />
+
 </configure>
 
