@@ -23,6 +23,6 @@ class CalculatedPerformanceDataSourceInfo(RRDDataSourceInfo):
     @property
     def testable(self):
         """
-        Tells the UI that we can test this datasource against a specific device
+        Tells the UI that this datasource is not testable.
         """
-        return True
+        return False
