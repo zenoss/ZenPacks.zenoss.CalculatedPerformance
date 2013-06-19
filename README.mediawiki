@@ -37,3 +37,11 @@ points from the same class. These will be evaluated in the following order RRD
 data points followed by device attributes. So in the case where you have a
 attribute with the same name as an RRD data point the RRD data point
 information would be used to calculate the value.
+
+== Change Log ==
+
+;1.0.6 - 2013-06-19
+* Remove broken "Test" button from datasource dialog. [https://github.com/zenoss/ZenPacks.zenoss.CalculatedPerformance/issues/1 #1]
+
+;1.0.5 - 2013-04-03
+* Initial open source release.
