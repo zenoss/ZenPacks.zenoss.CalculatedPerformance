@@ -40,6 +40,9 @@ information would be used to calculate the value.
 
 == Change Log ==
 
+;1.0.7 - 2013-07-15
+* Allow short name (ie datapoint id) OR long name (ie datasource id + _ + datapoint id) in calculations
+
 ;1.0.6 - 2013-06-19
 * Remove broken "Test" button from datasource dialog. [https://github.com/zenoss/ZenPacks.zenoss.CalculatedPerformance/issues/1 #1]
 
