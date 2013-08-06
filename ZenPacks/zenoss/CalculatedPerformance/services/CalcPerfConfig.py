@@ -27,6 +27,9 @@ unused(Globals)
 
 DSTYPE = CalculatedPerformanceDataSource.sourcetype
 
+class MissingRrdDatapoint(Exception):
+    pass
+
 
 def dotTraverse(base, path):
     """
@@ -75,7 +78,7 @@ class CalcPerfConfig(CollectorConfigService):
         for component in [device] + device.getMonitoredComponents():
             try:
                 self._getDataPoints(proxy, component, component.device().id, component.id)
-            except Exception, ex:
+            except Exception as ex:
                 log.warn("Skipping %s component %s because %s",
                          device.id, component.id, str(ex))
                 continue
@@ -85,7 +88,7 @@ class CalcPerfConfig(CollectorConfigService):
             return proxy
 
     def _getDataPoints(self, proxy, deviceOrComponent, deviceId, componentId):
-        allDatapointNames = [d.id for d in deviceOrComponent.getRRDDataPoints()]
+        allDatapointNames = sum([(d.id, d.name()) for d in deviceOrComponent.getRRDDataPoints()], ())
         for template in deviceOrComponent.getRRDTemplates():
             dataSources = [ds for ds
                            in template.getRRDDataSources(DSTYPE)
@@ -102,7 +105,7 @@ class CalcPerfConfig(CollectorConfigService):
                     elif value is not None:
                         obj_attrs[att] = value
                     else:
-                        raise Exception(
+                        raise MissingRrdDatapoint(
                             "Calculated Performance expression %s references "
                             "the variable %s which is not in %s" % (
                                 ds.expression, att, allDatapointNames))

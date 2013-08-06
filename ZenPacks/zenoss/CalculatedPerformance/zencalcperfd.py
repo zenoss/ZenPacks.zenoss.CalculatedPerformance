@@ -224,7 +224,7 @@ class CalculatedPerformanceCollectionTask(ObservableMixin):
                                        'AVERAGE',
                                        "-s " + rrdStart,
                                        "-e " + rrdEnd)[2]
-            except Exception, e:
+            except Exception as e:
                 log.debug("Unable to read RRD file %s: %s", filePath, e)
                 vars[rrdName] = None
                 continue
