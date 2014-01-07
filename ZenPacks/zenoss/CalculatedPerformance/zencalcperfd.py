@@ -191,10 +191,26 @@ class CalculatedPerformanceCollectionTask(ObservableMixin):
             try:
                 result = eval(expression, vars)
             except ZeroDivisionError:
-                log.error("Expression %s (%s) failed: division by zero", datapoint['dsPath'], expression)
+                log.warn(
+                    "Expression %s (%s) failed: division by zero",
+                    datapoint['dsPath'],
+                    expression)
+
                 continue
-            except Exception:
-                log.exception("Expression %s (%s) failed:", datapoint['dsPath'], expression)
+            except TypeError as e:
+                log.warn(
+                    "Expression %s (%s) failed: %s",
+                    datapoint['dsPath'],
+                    expression,
+                    e)
+
+                continue
+
+            except Exception as e:
+                log.exception(
+                    "Expression %s (%s) failed:",
+                    datapoint['dsPath'], expression)
+
                 continue
 
             path = datapoint['path']
@@ -235,7 +251,6 @@ class CalculatedPerformanceCollectionTask(ObservableMixin):
                     break
 
             if value is None:
-                value = 0
                 log.debug("Unable to fetch %s for %s", rrdName, self._devId)
 
             log.debug("RRD %s = %s", rrdName, value)
