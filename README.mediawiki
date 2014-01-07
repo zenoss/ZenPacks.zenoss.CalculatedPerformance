@@ -27,8 +27,11 @@ points from the same class. These will be evaluated in the following order RRD d
 
 == Changes ==
 
+;1.0.8 - 2014-01-06
+* Stop defaulting missing datapoints to 0. [https://jira.zenoss.com/browse/ZEN-9610 ZEN-9610]
+
 ;1.0.7 - 2013-07-15
-* Allow short name (<datapoint>) or long name (<datasource_datapoint) in calculations. [https://jira.zenoss.com/browse/ZEN-9610 ZEN-9610]
+* Allow short name (<datapoint>) or long name (<datasource_datapoint) in calculations.
 
 ;1.0.6 - 2013-06-19
 * Remove broken "Test" button from datasource dialog. [https://github.com/zenoss/ZenPacks.zenoss.CalculatedPerformance/issues/1 #1]
