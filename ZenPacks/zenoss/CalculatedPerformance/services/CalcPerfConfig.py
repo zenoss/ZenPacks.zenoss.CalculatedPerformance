@@ -19,6 +19,8 @@ log = logging.getLogger('zen.zenhub.service.calcperf')
 
 import Globals
 from Products.ZenCollector.services.config import CollectorConfigService
+from Products.ZenModel.DeviceHW import DeviceHW
+from Products.ZenModel.OperatingSystem import OperatingSystem
 from Products.ZenUtils.Utils import unused
 
 from ZenPacks.zenoss.CalculatedPerformance.datasources.CalculatedPerformanceDataSource import CalculatedPerformanceDataSource
@@ -38,11 +40,19 @@ def dotTraverse(base, path):
         --> 2137460736
     """
     path = path.split(".")
+    if path[0] == 'here':
+        path.pop(0)
+
     while len(path) > 0:
         try:
             base = getattr(base, path.pop(0))
         except:
             return None
+
+        # Backwards-compatibility for 'hw' and 'os' references.
+        if callable(base) and not isinstance(base, (DeviceHW, OperatingSystem)):
+            base = base()
+
     return base
 
 
