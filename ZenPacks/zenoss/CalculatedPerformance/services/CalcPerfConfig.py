@@ -115,10 +115,12 @@ class CalcPerfConfig(CollectorConfigService):
                     elif value is not None:
                         obj_attrs[att] = value
                     else:
-                        raise MissingRrdDatapoint(
+                        log.warn(
                             "Calculated Performance expression %s references "
                             "the variable %s which is not in %s" % (
                                 ds.expression, att, allDatapointNames))
+
+                        obj_attrs[att] = None
 
                 dp = ds.datapoints()[0]
 
