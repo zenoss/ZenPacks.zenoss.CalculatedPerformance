@@ -10,7 +10,7 @@ NAMESPACE_PACKAGES = ['ZenPacks', 'ZenPacks.zenoss']
 PACKAGES = ['ZenPacks', 'ZenPacks.zenoss', 'ZenPacks.zenoss.CalculatedPerformance']
 INSTALL_REQUIRES = []
 COMPAT_ZENOSS_VERS = ">= 4.1"
-PREV_ZENPACK_NAME = "ZenPacks.zenoss.AggregatingCollector"
+PREV_ZENPACK_NAME = ""
 # STOP_REPLACEMENTS
 ################################
 # Zenoss will not overwrite any changes you make below here.
