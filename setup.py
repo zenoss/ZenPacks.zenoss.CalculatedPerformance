@@ -9,8 +9,8 @@ LICENSE = "GPLv2"
 NAMESPACE_PACKAGES = ['ZenPacks', 'ZenPacks.zenoss']
 PACKAGES = ['ZenPacks', 'ZenPacks.zenoss', 'ZenPacks.zenoss.CalculatedPerformance']
 INSTALL_REQUIRES = []
-COMPAT_ZENOSS_VERS = ">= 3.1.0"
-PREV_ZENPACK_NAME = ""
+COMPAT_ZENOSS_VERS = ">= 4.1"
+PREV_ZENPACK_NAME = "ZenPacks.zenoss.AggregatingCollector"
 # STOP_REPLACEMENTS
 ################################
 # Zenoss will not overwrite any changes you make below here.
