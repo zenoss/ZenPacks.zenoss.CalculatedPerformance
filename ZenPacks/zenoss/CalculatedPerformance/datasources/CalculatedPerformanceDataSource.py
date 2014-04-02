@@ -23,19 +23,22 @@ from Products.ZenModel.ZenPackPersistence import ZenPackPersistence
 from Products.ZenUtils.Utils import executeStreamCommand
 from Products.ZenModel.ZenossSecurity import ZEN_CHANGE_DEVICE
 from Products.ZenWidgets import messaging
+from ZenPacks.zenoss.PythonCollector.datasources.PythonDataSource import PythonDataSource
 
 
-class CalculatedPerformanceDataSource(BasicDataSource, ZenPackPersistence):
-    ZENPACKID = 'ZenPacks.zenoss.CalculatedDataSource'
+class CalculatedPerformanceDataSource(PythonDataSource):
+    ZENPACKID = 'ZenPacks.zenoss.CalculatedPerformance'
 
     sourcetypes = ('Calculated Performance',)
     sourcetype = 'Calculated Performance'
+
+    # Collection plugin for this type.
+    plugin_classname = 'ZenPacks.zenoss.CalculatedPerformance.dsplugins.DerivedDataSourceProxyingPlugin'
 
     eventClass = '/Perf'
 
     description = ''
     expression = ''
-    cycletime = 60
 
     _properties = BasicDataSource._properties + (
         {'id': 'description', 'type': 'string', 'mode': 'w'},
@@ -47,9 +50,15 @@ class CalculatedPerformanceDataSource(BasicDataSource, ZenPackPersistence):
 
     def addDataPoints(self):
         """
-        Overrides method definded in BasicDataSource.
+        Make sure there is exactly one datapoint and that it has the same name
+        as the datasource. From SimpleRRDDataSource.
         """
-        RRDDataSource.SimpleRRDDataSource.addDataPoints(self)
+        dpid = self.prepId(self.id)
+        remove = [d for d in self.datapoints() if d.id != dpid]
+        for dp in remove:
+            self.datapoints._delObject(dp.id)
+        if not self.datapoints._getOb(dpid, None):
+            self.manage_addRRDDataPoint(dpid)
 
     def getDescription(self):
         description = ''
