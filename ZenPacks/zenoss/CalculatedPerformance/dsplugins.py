@@ -75,7 +75,7 @@ class AggregatingDataSourcePlugin(object):
     def params(cls, datasource, context):
         targetInfos = []
         # add an id->contents map for each component/device
-        for member in dotTraverse(context, datasource.targetMethod or ''):
+        for member in dotTraverse(context, datasource.targetMethod or '') or []:
             targetInfos.append(targetInfo(member))
 
         return dict(
