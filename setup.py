@@ -8,7 +8,7 @@ AUTHOR = "Zenoss"
 LICENSE = "GPLv2"
 NAMESPACE_PACKAGES = ['ZenPacks', 'ZenPacks.zenoss']
 PACKAGES = ['ZenPacks', 'ZenPacks.zenoss', 'ZenPacks.zenoss.CalculatedPerformance']
-INSTALL_REQUIRES = []
+INSTALL_REQUIRES = ['ZenPacks.zenoss.PythonCollector']
 COMPAT_ZENOSS_VERS = ">= 4.1"
 PREV_ZENPACK_NAME = ""
 # STOP_REPLACEMENTS
