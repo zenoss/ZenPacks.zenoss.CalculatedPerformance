@@ -105,5 +105,5 @@ You must create these components at modeling time like any other component. Then
 ;1.0.6 - 2013-06-19
 * Remove broken 'Test' button from datasource dialog. [[https://github.com/zenoss/ZenPacks.zenoss.CalculatedPerformance/issues/1 #1]]
 
-l1.0.5 - 2013-04-03
+;1.0.5 - 2013-04-03
 * Initial open source release.
