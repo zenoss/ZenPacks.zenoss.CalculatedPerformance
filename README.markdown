@@ -1,4 +1,5 @@
 Calculated Performance v2.0
+===========================
 
 Documentation can also be found [on the Zenoss wiki](http://wiki.zenoss.org/ZenPack:Calculated_Performance).
 
@@ -20,7 +21,7 @@ All derived datapoints rely on reading previously collected target datapoints fr
 
 Because performance data is stored locally on the collector, only devices and components on the same collector can be aggregated.
 
-Derived datapoints are only based on the most recent available data from target datapoints. This is limited to data up to 5*cycleTime seconds in the past. If a target datapoint does not exist on the target element, or has not been collected in the recent past, that element will be excluded from the calculation. This may mean that fewer datapoints than desired are used in the calculation (for aggregate datapoints), or that the overall result cannot be calculated at all. An event will be sent when this occurs.
+Derived datapoints are only based on the most recent available data from target datapoints. This is limited to data up to 5\*cycleTime seconds in the past. If a target datapoint does not exist on the target element, or has not been collected in the recent past, that element will be excluded from the calculation. This may mean that fewer datapoints than desired are used in the calculation (for aggregate datapoints), or that the overall result cannot be calculated at all. An event will be sent when this occurs.
 
 # Calculated Performance
 

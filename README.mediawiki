@@ -1,4 +1,5 @@
-<p>Calculated Performance v2.0</p>
+<h1 id="calculated-performance-v2.0">Calculated Performance v2.0</h1>
+<p>Documentation can also be found <a href="http://wiki.zenoss.org/ZenPack:Calculated_Performance">on the Zenoss wiki</a>.</p>
 <h1 id="overview">Overview</h1>
 <p>The Calculated Performance ZenPack provides a few capabilities for creating <em>derived datapoints</em>. A derived datapoint's value is determined based on the values of other datapoints or attributes, as opposed to being collected directly from a target device or component. There are two different types of derived datapoint provided: Calculated Performance and Datapoint Aggregator. Both of these types are collected within the zenpython daemon provided by PythonCollector, so no new daemons are required.</p>
 <p>Calculated Performance datapoints are functionally the same as in v1.x. By configuring a Python expression, you can combine any datapoints or model attributes from the target device or component. The capabilities of the Python expression have been expanded in v2.0.</p>
