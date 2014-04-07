@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<configure
+    xmlns="http://namespaces.zope.org/zope"
+    xmlns:browser="http://namespaces.zope.org/browser"
+    xmlns:zcml="http://namespaces.zope.org/zcml">
+
+
+  <browser:resourceDirectory
+            name="aggregatingcollector"
+            directory="resources"
+            />
+
+    <browser:viewlet
+        name="js-aggregatingcollector"
+        paths="/++resource++aggregatingcollector/js/AggregatingCollector.js"
+        weight="99"
+        manager="Products.ZenUI3.browser.interfaces.IJavaScriptSrcManager"
+        class="Products.ZenUI3.browser.javascript.JavaScriptSrcBundleViewlet"
+        permission="zope2.Public"
+        for="Products.ZenModel.Device.Device"
+        />
+    
+</configure>
