@@ -3,7 +3,7 @@ Calculated Performance v2.0
 
 Documentation can also be found [on the Zenoss wiki](http://wiki.zenoss.org/ZenPack:Calculated_Performance).
 
-# Overview
+## Overview
 
 The Calculated Performance ZenPack provides a few capabilities for creating *derived datapoints*. A derived datapoint's value is determined based on the values of other datapoints or attributes, as opposed to being collected directly from a target device or component. There are two different types of derived datapoint provided: Calculated Performance and Datapoint Aggregator. Both of these types are collected within the zenpython daemon provided by PythonCollector, so no new daemons are required.
 
@@ -15,19 +15,21 @@ Datapoint Aggregator datapoints are a new capability in v2.0. They perform a poi
 
 ![Simple aggregating datapoint example](aggregation_basic_diagram.png)
 
-## Caveats
+#### Caveats
 
-All derived datapoints rely on reading previously collected target datapoints from the performance data store. As such, the calculation of the derived value will be delayed by as much as an entire collection cycle. In general, derived datapoints should be considered to incur a 1-cycle delay for each aggregation or calculation step. In practice, we can often compute an entire tree of aggregation and calculation steps in the same collection cycle. See: [Best Practices for Derived Datapoints: Using Topological Sort](#bookmark=id.ausvy7fklq5l).
+All derived datapoints rely on reading previously collected target datapoints from the performance data store. As such, the calculation of the derived value will be delayed by as much as an entire collection cycle. In general, derived datapoints should be considered to incur a 1-cycle delay for each aggregation or calculation step. In practice, we can often compute an entire tree of aggregation and calculation steps in the same collection cycle. See: [Best Practices for Derived Datapoints: Using Topological Sort](##bookmark=id.ausvy7fklq5l).
 
 Because performance data is stored locally on the collector, only devices and components on the same collector can be aggregated.
 
 Derived datapoints are only based on the most recent available data from target datapoints. This is limited to data up to 5\*cycleTime seconds in the past. If a target datapoint does not exist on the target element, or has not been collected in the recent past, that element will be excluded from the calculation. This may mean that fewer datapoints than desired are used in the calculation (for aggregate datapoints), or that the overall result cannot be calculated at all. An event will be sent when this occurs.
 
-# Calculated Performance
+## Usage
+
+### Calculated Performance
 
 A Calculated Performance datasource contains a Python expression whose result will be stored as the value of the single datapoint. The expression can reference any other datapoint or model attribute on the device or component. For example, the expression `(hw.totalMemory – memAvailReal) / hw.totalMemory` uses the totalMemory attribute modeled from the device and the datapoint memAvailReal to calculate a percentage used. Dotted-name model attributes can reference functions or relationships as long as they take no arguments. Datapoints can be referenced using only the datapoint name, or as datasource_datapoint. If there are model attributes and datapoints that have a name conflict, the datapoint's value will be used. To disambiguate, you can use `here.attribute` to specify a model attribute, and the `datasource_datapoint` name to specify a datapoint.
 
-In v2.0, the capabilities of the expression have been expanded. Any `eval`-able Python code can be used, including control structures and any built-in functions, as long as it returns a single numeric value. This means that any Python keyword (See: [keyword.kwlist](https://docs.python.org/2/library/keyword.html#keyword.kwlist)) and any Python builtin (See: [builtins](https://docs.python.org/2/library/functions.html)) are reserved words that cannot be used as attribute or datapoint names. If a model attribute or datapoint has a name conflict with a reserved identifier, the `here.attribute` or `datasource_datapoint` syntax will resolve the issue.
+In v2.0, the capabilities of the expression have been expanded. Any `eval`-able Python code can be used, including control structures and any built-in functions, as long as it returns a single numeric value. This means that any Python keyword (See: [keyword.kwlist](https://docs.python.org/2/library/keyword.html##keyword.kwlist)) and any Python builtin (See: [builtins](https://docs.python.org/2/library/functions.html)) are reserved words that cannot be used as attribute or datapoint names. If a model attribute or datapoint has a name conflict with a reserved identifier, the `here.attribute` or `datasource_datapoint` syntax will resolve the issue.
 
 In addition, the expression has access to a few provided utility functions:
 
@@ -35,19 +37,19 @@ In addition, the expression has access to a few provided utility functions:
 
 * `pct(numeratorList, denominatorList)`: Computes a percentage of sums of the numerator list and the denominator list. None values are assumed to be zero, and if the denominator is zero the returned value is zero.
 
-# Datapoint Aggregator
+### Datapoint Aggregator
 
-## Configuring a 'Datapoint Aggregator' Datasource and Datapoints
+#### Configuring a 'Datapoint Aggregator' Datasource and Datapoints
 
 A Datapoint Aggregator datasource is a datasource like any other: it resides in a template, which will be bound to a device or component that we will attempt to collect against. The aggregating datasource has two important pieces of configuration: the target elements to get data from, and the target datapoint on those elements.
 
-The elements to collect from are controlled by the configured Target Method name. This can be any method or relationship present on the element type to which the template will be bound, and must require no arguments. This method must return an iterable of all elements against which we will collect. For example, for an aggregate datasource on a device, we could collect from all of its components by setting this field to `getMonitoredComponents` or from all of its interfaces by using `os.interfaces`. By default, the method is `getElements`, which is expected to be used on a custom ElementPool component. See: [Implementing a Custom ElementPool Component](#bookmark=id.34wzelyfww68).
+The elements to collect from are controlled by the configured Target Method name. This can be any method or relationship present on the element type to which the template will be bound, and must require no arguments. This method must return an iterable of all elements against which we will collect. For example, for an aggregate datasource on a device, we could collect from all of its components by setting this field to `getMonitoredComponents` or from all of its interfaces by using `os.interfaces`. By default, the method is `getElements`, which is expected to be used on a custom ElementPool component. See: [Implementing a Custom ElementPool Component](##bookmark=id.34wzelyfww68).
 
 The datapoint to collect from each element is specified by the Datasource, Datapoint, and RRA fields. As expected, this will collect the value from datasource_datapoint:RRA on each target element before aggregating the set of values.
 
 A datapoint on a Datapoint Aggregator type datasource provides the configuration of the aggregation operation to perform on the set of collected values. Multiple such datapoints can be configured on a single datasource to perform several aggregations on the same set of data. The 'Operation' field must be one of the available operations provided by the ZenPack. Some operations may take additional arguments, which should be a string of comma-separated values in the 'Arguments' field.
 
-## Available Aggregation Operations
+#### Available Aggregation Operations
 
 The following aggregation operations are available (aliases included). Operations that result in different units than those submitted are noted.
 
@@ -71,13 +73,13 @@ The following aggregation operations are available (aliases included). Operation
 
 * `percentile`: Takes an additional argument `n` (0-100). Returns the [nth percentile](http://en.wikipedia.org/wiki/Percentile) value from the set of target datapoints.
 
-## Thresholding on Aggregate Datapoints: Additional Event Detail
+#### Thresholding on Aggregate Datapoints: Additional Event Detail
 
 When a MinMax threshold is violated on an aggregate datapoint, an additional event detail is added to the generated event. The `violator` detail of the event will contain a set of (uid, value) tuples for each target element whose value is above the threshold. For example, if the median operation is applied to [3,3,5,9,11] and has a maximum threshold of 4, the elements corresponding to the 5, 9, and 11 values would appear in the `violator` detail.
 
 The value given in the `violator` tuple will correspond to the aggregate operation requested: the `std` and `mad` operations will provide each element's deviation as its corresponding value, and the `var` operation will provide the square of each element's deviation. All other aggregations will use the value of the target datapoint as collected.
 
-## Best Practices for Derived Datapoints: Using Topological Sort
+#### Best Practices for Derived Datapoints: Using Topological Sort
 
 As mentioned above, both Calculated Performance and Datapoint Aggregator datasources incur a 1-collection cycle delay when collecting. This problem compounds when both are in play. Each time you calculate or aggregate a datapoint, a 1-cycle delay is added. In this example, some aggregations are performed, then a calculation, then a final aggregation. Each step incurs a 1-cycle delay, resulting in data that is 4 cycles old by the time the final aggregation is stored.
 
@@ -87,7 +89,7 @@ However, not all compound datapoints necessarily incur a delay. If the derived d
 
 ![Mitigated Cycles of Delay for Aggregation and Calculation](aggregation_delay_mitigated.png)
 
-# Implementing a Custom ElementPool Component
+### Implementing a Custom ElementPool Component
 
 There are many scenarios for using an aggregate datapoint where it makes no sense to put the aggregate datapoint on an existing device or component. For example, an aggregate datapoint may want to calculate across disparate devices and components. For this situation, we provide a generic `ElementPool` component. The base `ElementPool` stores its members as a list of UUIDs of device/components to target, and implements the `getElements()` method that will return the appropriate list.
 
@@ -101,7 +103,7 @@ You must create these components at modeling time like any other component. Then
         def getElements(self):
             return [x for x in self.device().getMonitoredComponents() if random.random() > 0.314159]
 
-# Changes
+## Changes
 
 **2.0.0 - 2014-04-07**
 * Add aggregating datapoint capabilities.
@@ -119,7 +121,7 @@ You must create these components at modeling time like any other component. Then
 * Allow short name (`datapoint`) or long name (`datasource_datapoint`) in calculations.
 
 **1.0.6 - 2013-06-19**
-* Remove broken 'Test' button from datasource dialog. [https://github.com/zenoss/ZenPacks.zenoss.CalculatedPerformance/issues/1](#1)
+* Remove broken 'Test' button from datasource dialog. [https://github.com/zenoss/ZenPacks.zenoss.CalculatedPerformance/issues/1](##1)
 
 **1.0.5 - 2013-04-03**
 * Initial open source release.
