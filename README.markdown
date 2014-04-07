@@ -3,29 +3,6 @@ Calculated Performance v2.0
 
 Documentation can also be found [on the Zenoss wiki](http://wiki.zenoss.org/ZenPack:Calculated_Performance).
 
-## Changes
-
-**2.0.0 - 2014-04-07**
-* Add aggregating datapoint capabilities.
-* Add ElementPool components for aggregations.
-* Rewrite collection to use PythonCollector.
-
-**1.0.9 - 2014-03-18**
-* Support device properties in expressions. [https://jira.zenoss.com/browse/ZEN-10648](ZEN-10648)
-* Prevent failure when one expression contains an error. [https://jira.zenoss.com/browse/ZEN-10649](ZEN-10649)
-
-**1.0.8 - 2014-01-06**
-* Stop defaulting missing datapoints to 0. [https://jira.zenoss.com/browse/ZEN-9610](ZEN-9610)
-
-**1.0.7 - 2013-07-15**
-* Allow short name (`datapoint`) or long name (`datasource_datapoint`) in calculations.
-
-**1.0.6 - 2013-06-19**
-* Remove broken 'Test' button from datasource dialog. [https://github.com/zenoss/ZenPacks.zenoss.CalculatedPerformance/issues/1](#1)
-
-**1.0.5 - 2013-04-03**
-* Initial open source release.
-
 # Overview
 
 The Calculated Performance ZenPack provides a few capabilities for creating *derived datapoints*. A derived datapoint's value is determined based on the values of other datapoints or attributes, as opposed to being collected directly from a target device or component. There are two different types of derived datapoint provided: Calculated Performance and Datapoint Aggregator. Both of these types are collected within the zenpython daemon provided by PythonCollector, so no new daemons are required.
@@ -124,3 +101,25 @@ You must create these components at modeling time like any other component. Then
         def getElements(self):
             return [x for x in self.device().getMonitoredComponents() if random.random() > 0.314159]
 
+# Changes
+
+**2.0.0 - 2014-04-07**
+* Add aggregating datapoint capabilities.
+* Add ElementPool components for aggregations.
+* Rewrite collection to use PythonCollector.
+
+**1.0.9 - 2014-03-18**
+* Support device properties in expressions. [https://jira.zenoss.com/browse/ZEN-10648](ZEN-10648)
+* Prevent failure when one expression contains an error. [https://jira.zenoss.com/browse/ZEN-10649](ZEN-10649)
+
+**1.0.8 - 2014-01-06**
+* Stop defaulting missing datapoints to 0. [https://jira.zenoss.com/browse/ZEN-9610](ZEN-9610)
+
+**1.0.7 - 2013-07-15**
+* Allow short name (`datapoint`) or long name (`datasource_datapoint`) in calculations.
+
+**1.0.6 - 2013-06-19**
+* Remove broken 'Test' button from datasource dialog. [https://github.com/zenoss/ZenPacks.zenoss.CalculatedPerformance/issues/1](#1)
+
+**1.0.5 - 2013-04-03**
+* Initial open source release.
