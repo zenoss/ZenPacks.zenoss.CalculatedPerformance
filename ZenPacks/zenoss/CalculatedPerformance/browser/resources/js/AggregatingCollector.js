@@ -40,7 +40,7 @@
                     pageParam: undefined,
                     sortParam: undefined,
                     type: 'direct',
-                    directFn: Zenoss.remote.AggregatingCollectorRouter.getMembers,
+                    directFn: Zenoss.remote.ElementPoolRouter.getMembers,
                     reader: {
                         root: 'data',
                         totalProperty: 'count'
