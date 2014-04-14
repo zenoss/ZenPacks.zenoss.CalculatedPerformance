@@ -4,6 +4,7 @@
 # This content is made available according to terms specified in
 # License.zenoss under the directory where your Zenoss product is installed.
 #
+from functools import partial
 import itertools
 import keyword
 import re
@@ -133,6 +134,25 @@ def getVarNames(expression):
     return itertools.ifilterfalse(isReserved, varNameRe.findall(expression))
 
 
+def _getAndCall(obj, attr, default=None):
+    base = getattr(obj, attr, default)
+    if base is None:
+        return None
+
+    # Backwards-compatibility for 'hw' and 'os' references.
+    if callable(base) and not isinstance(base, (DeviceHW, OperatingSystem)):
+        base = base()
+    return base
+
+
+def _maybeChain(iterables):
+    for it in iterables:
+        if hasattr(it, '__iter__'):
+            for element in it:
+                yield element
+        else:
+            yield it
+
 def dotTraverse(base, path):
     """
     Traverse object attributes with a . separating attributes.
@@ -149,13 +169,17 @@ def dotTraverse(base, path):
         path.pop(0)
 
     while len(path) > 0:
-        base = getattr(base, path.pop(0), None)
         if base is None:
             return None
 
-        # Backwards-compatibility for 'hw' and 'os' references.
-        if callable(base) and not isinstance(base, (DeviceHW, OperatingSystem)):
-            base = base()
+        attr = path.pop(0)
+
+        #if iterable, get the attr for each and chain it
+        if hasattr(base, '__iter__'):
+            getFunc = partial(_getAndCall, attr=attr, default=None)
+            base = list(_maybeChain(map(getFunc, base)))
+        else:
+            base = _getAndCall(base, attr)
 
 
     return base
