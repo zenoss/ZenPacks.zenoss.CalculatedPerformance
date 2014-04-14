@@ -59,12 +59,16 @@ class TestUtils(BaseTestCase):
         testObj.chainfunc9 = lambda: [
             self._getSimpleObject({'subchain': [1,2,3]}),
             self._getSimpleObject({'subchain': 4}),
+            self._getSimpleObject({'subchain': None}),
+            self._getSimpleObject({'subchain': [None]}),
             self._getSimpleObject({'subchain': [5,6]}),
             self._getSimpleObject({'subchain': 7}),
         ]
         testObj.chainfunc10 = lambda: [
             self._getSimpleObject({'subchain': lambda: [1,2,3]}),
             self._getSimpleObject({'subchain': lambda: 4}),
+            self._getSimpleObject({'subchain': lambda: None}),
+            self._getSimpleObject({'subchain': lambda: [None]}),
             self._getSimpleObject({'subchain': lambda: [5,6]}),
             self._getSimpleObject({'subchain': lambda: 7}),
         ]
