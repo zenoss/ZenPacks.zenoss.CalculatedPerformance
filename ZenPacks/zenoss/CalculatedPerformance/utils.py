@@ -10,6 +10,7 @@ import keyword
 import re
 from Products.ZenModel.DeviceHW import DeviceHW
 from Products.ZenModel.OperatingSystem import OperatingSystem
+from Products.ZenModel.ZenModelRM import ZenModelRM
 
 
 def toposort(depDict):
@@ -147,7 +148,7 @@ def _getAndCall(obj, attr, default=None):
 
 def _maybeChain(iterables):
     for it in iterables:
-        if hasattr(it, '__iter__'):
+        if hasattr(it, '__iter__') and not isinstance(it, ZenModelRM):
             for element in it:
                 yield element
         else:
@@ -174,12 +175,14 @@ def dotTraverse(base, path):
 
         attr = path.pop(0)
 
-        #if iterable, get the attr for each and chain it
-        if hasattr(base, '__iter__'):
+        if hasattr(base, attr):
+            base = _getAndCall(base, attr)
+        elif hasattr(base, '__iter__') and not isinstance(base, ZenModelRM):
+            #if iterable, get the attr for each and chain it
             getFunc = partial(_getAndCall, attr=attr, default=None)
             base = list(x for x in _maybeChain(map(getFunc, base)) if x is not None)
         else:
-            base = _getAndCall(base, attr)
+            base = None
 
 
     return base
