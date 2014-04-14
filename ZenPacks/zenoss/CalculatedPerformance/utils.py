@@ -177,7 +177,7 @@ def dotTraverse(base, path):
         #if iterable, get the attr for each and chain it
         if hasattr(base, '__iter__'):
             getFunc = partial(_getAndCall, attr=attr, default=None)
-            base = list(_maybeChain(map(getFunc, base)))
+            base = list(x for x in _maybeChain(map(getFunc, base)) if x is not None)
         else:
             base = _getAndCall(base, attr)
 
