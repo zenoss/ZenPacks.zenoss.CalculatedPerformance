@@ -127,7 +127,7 @@ _reserved = ['avg', 'pct', 'rrd_paths'] + \
 
 def isReserved(name):
     return keyword.iskeyword(name) or \
-           hasattr(__builtins__, name) or \
+           __builtins__.has_key(name) or \
            name in _reserved
 
 
