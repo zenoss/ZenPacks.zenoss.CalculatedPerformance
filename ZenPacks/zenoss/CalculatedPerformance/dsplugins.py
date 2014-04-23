@@ -4,7 +4,7 @@
 # This content is made available according to terms specified in
 # License.zenoss under the directory where your Zenoss product is installed.
 #
-from itertools import chain
+from itertools import chain, izip
 import logging
 import time
 from twisted.internet.defer import inlineCallbacks, returnValue
@@ -69,6 +69,14 @@ def targetInfo(target):
     return targetConfig
 
 
+def handleArguments(targetArgValues, dpargs):
+    tokens = dpargs.strip().split(',') if dpargs.strip() else []
+    arguments = []
+    for tok, x in izip(tokens, range(len(tokens))):
+        arguments.append(targetArgValues[x] if getVarNames(tok) else tok.strip())
+    return arguments
+
+
 class AggregatingDataSourcePlugin(object):
 
     @classmethod
@@ -78,9 +86,17 @@ class AggregatingDataSourcePlugin(object):
         for member in dotTraverse(context, datasource.targetMethod or '') or []:
             targetInfos.append(targetInfo(member))
 
+        targetArgValues = []
+        for datapoint in datasource.datapoints():
+            for att in getVarNames(datapoint.arguments.strip()):
+                targetArgValues.append(dotTraverse(context, att))
+            # should be only datapoint, so ...
+            break
+
         return dict(
             targetDatapoints = [(datasource.targetDataSource, datasource.targetDataPoint,
                                  datasource.targetRRA or 'AVERAGE')],
+            targetArgValues=targetArgValues,
             targets=targetInfos
         )
 
@@ -114,7 +130,7 @@ class AggregatingDataSourcePlugin(object):
             try:
                 aggregate, adjustedTargetValues = yield self.performAggregation(
                     datapoint.operation,
-                    datapoint.arguments.split(',') if datapoint.arguments else [],
+                    handleArguments(datasource.params['targetArgValues'], datapoint.arguments),
                     targetValues)
                 log.debug("Aggregate value %s calculated for datapoint %s_%s on %s:%s",
                           str(aggregate), datasource.datasource, datapoint.id,
@@ -200,7 +216,7 @@ class CalculatedDataSourcePlugin(object):
         expression = datasource.params.get('expression', None)
         if expression:
             # We will populate this with perf metrics and pass to eval()
-            vars = createDeviceDictionary(datasource.params['obj_attrs'])
+            devdict = createDeviceDictionary(datasource.params['obj_attrs'])
 
             rrdValues = {}
             for targetDatasource, targetDatapoint, targetRRA in datasource.params['targetDatapoints']:
@@ -214,11 +230,11 @@ class CalculatedDataSourcePlugin(object):
                 rrdValues[targetDatapoint] = value
                 rrdValues['%s_%s' % (targetDatasource, targetDatapoint)] = value
 
-            vars.update(rrdValues)
+            devdict.update(rrdValues)
 
             result = None
             try:
-                result = eval(expression, vars)
+                result = eval(expression, devdict)
                 log.debug("Result of %s --> %s %s", expression, result, dsKey(datasource))
             except ZeroDivisionError:
                 msg = "Expression for %s (%s) failed: division by zero" % \
