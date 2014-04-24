@@ -96,7 +96,7 @@ class AggregatingDataSourcePlugin(object):
         return dict(
             targetDatapoints = [(datasource.targetDataSource, datasource.targetDataPoint,
                                  datasource.targetRRA or 'AVERAGE')],
-            targetArgValues=targetArgValues,
+            targetArgValues=[tuple(targetArgValues)],
             targets=targetInfos
         )
 
@@ -130,7 +130,7 @@ class AggregatingDataSourcePlugin(object):
             try:
                 aggregate, adjustedTargetValues = yield self.performAggregation(
                     datapoint.operation,
-                    handleArguments(datasource.params['targetArgValues'], datapoint.arguments),
+                    handleArguments(datasource.params['targetArgValues'][0], datapoint.arguments),
                     targetValues)
                 log.debug("Aggregate value %s calculated for datapoint %s_%s on %s:%s",
                           str(aggregate), datasource.datasource, datapoint.id,
