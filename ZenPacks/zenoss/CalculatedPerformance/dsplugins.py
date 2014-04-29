@@ -256,6 +256,8 @@ class CalculatedDataSourcePlugin(object):
                         'severity': ZenEventClasses.Error,
                         })
                     log.exception(msg + "\n%s", ex)
+            else:
+                log.debug("Can't get RRD values for EXPR: %s --> DS: %s" % (expression, dsKey(datasource)))
 
             if result is not None:
                 collectedValues.setdefault(datasource.component, {})
