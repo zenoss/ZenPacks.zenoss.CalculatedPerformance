@@ -227,33 +227,37 @@ class CalculatedDataSourcePlugin(object):
                                                     datasource.params['targets'][0])
                 # Datapoints can be referenced in the expression by datapoint id alone,
                 # or by datasource_datapoint
-                rrdValues[targetDatapoint] = value
-                rrdValues['%s_%s' % (targetDatasource, targetDatapoint)] = value
+                if value:
+                    rrdValues[targetDatapoint] = value
+                    rrdValues['%s_%s' % (targetDatasource, targetDatapoint)] = value
 
-            devdict.update(rrdValues)
+            if rrdValues:
+                devdict.update(rrdValues)
 
-            result = None
-            try:
-                result = eval(expression, devdict)
-                log.debug("Result of %s --> %s %s", expression, result, dsKey(datasource))
-            except ZeroDivisionError:
-                msg = "Expression for %s (%s) failed: division by zero" % \
-                      (dsKey(datasource), expression)
-                collectedEvents.append({
-                    'summary': msg,
-                    'eventKey': 'calculatedDataSourcePlugin_result',
-                    'severity': ZenEventClasses.Error,
-                })
-                log.warn(msg)
-            except (TypeError, Exception) as ex:
-                msg = "Expression for %s (%s) failed: %s" % \
-                      (dsKey(datasource), expression, ex.message)
-                collectedEvents.append({
-                    'summary': msg,
-                    'eventKey': 'calculatedDataSourcePlugin_result',
-                    'severity': ZenEventClasses.Error,
+                result = None
+                try:
+                    result = eval(expression, devdict)
+                    log.debug("Result of %s --> %s %s", expression, result, dsKey(datasource))
+                except ZeroDivisionError:
+                    msg = "Expression for %s (%s) failed: division by zero" % \
+                          (dsKey(datasource), expression)
+                    collectedEvents.append({
+                        'summary': msg,
+                        'eventKey': 'calculatedDataSourcePlugin_result',
+                        'severity': ZenEventClasses.Error,
                     })
-                log.exception(msg + "\n%s", ex)
+                    log.warn(msg)
+                except (TypeError, Exception) as ex:
+                    msg = "Expression for %s (%s) failed: %s" % \
+                          (dsKey(datasource), expression, ex.message)
+                    collectedEvents.append({
+                        'summary': msg,
+                        'eventKey': 'calculatedDataSourcePlugin_result',
+                        'severity': ZenEventClasses.Error,
+                        })
+                    log.exception(msg + "\n%s", ex)
+            else:
+                log.debug("Can't get RRD values for EXPR: %s --> DS: %s" % (expression, dsKey(datasource)))
 
             if result is not None:
                 collectedValues.setdefault(datasource.component, {})
