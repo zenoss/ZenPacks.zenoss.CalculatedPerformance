@@ -231,10 +231,10 @@ class CalculatedDataSourcePlugin(object):
                     rrdValues[targetDatapoint] = value
                     rrdValues['%s_%s' % (targetDatasource, targetDatapoint)] = value
 
+            result = None
             if rrdValues:
                 devdict.update(rrdValues)
 
-                result = None
                 try:
                     result = eval(expression, devdict)
                     log.debug("Result of %s --> %s %s", expression, result, dsKey(datasource))
