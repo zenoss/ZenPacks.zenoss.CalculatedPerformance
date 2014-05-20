@@ -232,7 +232,7 @@ class CalculatedDataSourcePlugin(object):
                     rrdValues['%s_%s' % (targetDatasource, targetDatapoint)] = value
 
             result = None
-            if rrdValues:
+            if len(rrdValues) == len(datasource.params['targetDatapoints']):
                 devdict.update(rrdValues)
 
                 try:
