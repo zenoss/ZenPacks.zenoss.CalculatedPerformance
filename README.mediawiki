@@ -88,6 +88,16 @@ You must create these components at modeling time like any other component. Then
 
 == Changes ==
 
+;2.0.1 - 2014-05-20
+* Ability to concatenate iterables in expressions and methods (Ex: `hw.interfaces.operspeed` = `[1000000000, 1000000000]` with 2 interfaces.)
+* New 'madmax' aggregate operation, for Median Absolute Deviation calculations on values restricted to a maximum.
+* Fix ZEN-11235: zen.CalculatingPlugin has many failures of unsupported operand type
+* Fix ZEN-11278: Builtins misrecognized in expressions
+* Fix ZEN-11428: CalculatedPerformance 2.0.0 error starting daemons on v411
+* Fix ZEN-11432: exceptions.UnboundLocalError in zenpython.log
+* Fix ZEN-11492: Missing some datasource properties
+* Fix ZEN-11580: CalculatedPerformance 2.0.0 has Dependency on PythonCollector>1.3.0
+
 ;2.0.0 - 2014-04-07
 * Add aggregating datapoint capabilities.
 * Add ElementPool components for aggregations. * Rewrite collection to use PythonCollector.
