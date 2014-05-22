@@ -63,14 +63,12 @@
             config = Ext.applyIf(config || {}, {
                 rootVisible: false,
                 columns: [{
-                    id: 'aggcomp_severity',
                     dataIndex: 'severity',
                     header: _t('Events'),
                     renderer: Zenoss.render.severity,
                     width: 50
                 },{
                     xtype: 'treecolumn',
-                    id: 'aggcomp_name',
                     dataIndex: 'name',
                     header: _t('Name'),
                     flex: 1,
@@ -78,7 +76,6 @@
                         return Zenoss.render.default_uid_renderer(record.get('uid'), value);
                     }
                 },{
-                    id: 'aggcomp_type',
                     dataIndex: 'meta_type',
                     header: _t('Type'),
                     renderer: function(value) {

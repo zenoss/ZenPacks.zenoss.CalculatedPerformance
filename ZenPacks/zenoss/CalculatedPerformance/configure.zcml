@@ -5,6 +5,7 @@
     xmlns:zcml="http://namespaces.zope.org/zcml">
 
 
+    <include package="Products.ZenUtils.extdirect.zope" file="meta.zcml"/>
     <include package=".browser"/>
 
     <!-- Info Adapters: DataSources

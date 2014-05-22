@@ -39,7 +39,10 @@ class CalculatedPerformanceDataSource(PythonDataSource):
 
     description = ''
     expression = ''
-
+    # we don't use oid but it is defined in basicdatasource so we need it here
+    oid = ''
+    usessh = False
+    parser = ""
     _properties = BasicDataSource._properties + (
         {'id': 'description', 'type': 'string', 'mode': 'w'},
         {'id': 'expression', 'type': 'string', 'mode': 'w'},

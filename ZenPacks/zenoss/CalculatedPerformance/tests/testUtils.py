@@ -33,6 +33,12 @@ class TestUtils(BaseTestCase):
         self.assertEqual(getTargetId({'id': 'testc', 'device': {}}), '_testc')
         self.assertEqual(getTargetId({'id': 'testc', 'device': {'id': 'test'}}), 'test_testc')
 
+    def _getSimpleObject(self, attrs={}):
+        obj = SimpleObject()
+        for k,v in attrs.items():
+            setattr(obj, k, v)
+        return obj
+
     def _getTestObj(self):
         testObj = SimpleObject()
         testObj.str1 = 'str1'
@@ -50,6 +56,22 @@ class TestUtils(BaseTestCase):
         testObj.subobj7.floatfunc60 = lambda: 60.006
         testObj.subobj7.objfuncSelf = lambda: testObj
         testObj.objfunc8 = lambda: testObj.subobj7
+        testObj.chainfunc9 = lambda: [
+            self._getSimpleObject({'subchain': [1,2,3]}),
+            self._getSimpleObject({'subchain': 4}),
+            self._getSimpleObject({'subchain': None}),
+            self._getSimpleObject({'subchain': [None]}),
+            self._getSimpleObject({'subchain': [5,6]}),
+            self._getSimpleObject({'subchain': 7}),
+        ]
+        testObj.chainfunc10 = lambda: [
+            self._getSimpleObject({'subchain': lambda: [1,2,3]}),
+            self._getSimpleObject({'subchain': lambda: 4}),
+            self._getSimpleObject({'subchain': lambda: None}),
+            self._getSimpleObject({'subchain': lambda: [None]}),
+            self._getSimpleObject({'subchain': lambda: [5,6]}),
+            self._getSimpleObject({'subchain': lambda: 7}),
+        ]
         return testObj
 
     def testDotTraverseInvalidCases(self):
@@ -156,6 +178,13 @@ class TestUtils(BaseTestCase):
         self.assertEqual(dotTraverse(testObj, 'here.objfunc8.objfuncSelf.objfunc8.objfuncSelf'), testObj)
         self.assertEqual(dotTraverse(testObj, 'objfunc8.objfuncSelf.objfunc8.objfuncSelf.objfunc8.objfuncSelf'), testObj)
         self.assertEqual(dotTraverse(testObj, 'here.objfunc8.objfuncSelf.objfunc8.objfuncSelf.objfunc8.objfuncSelf'), testObj)
+
+    def testDotTraverseCallableChain(self):
+        testObj = self._getTestObj()
+        self.assertEqual(dotTraverse(testObj, 'chainfunc9.subchain'), [1, 2, 3, 4, 5, 6, 7])
+        self.assertEqual(dotTraverse(testObj, 'here.chainfunc9.subchain'), [1, 2, 3, 4, 5, 6, 7])
+        self.assertEqual(dotTraverse(testObj, 'chainfunc10.subchain'), [1, 2, 3, 4, 5, 6, 7])
+        self.assertEqual(dotTraverse(testObj, 'here.chainfunc10.subchain'), [1, 2, 3, 4, 5, 6, 7])
 
 
 def test_suite():

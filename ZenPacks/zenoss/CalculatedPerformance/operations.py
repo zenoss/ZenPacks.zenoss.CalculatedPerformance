@@ -10,7 +10,6 @@ and the value array with any in-place modification.
 """
 import math
 
-
 def _amean(values):
     if not values:
         return None
@@ -125,6 +124,14 @@ def mad(valuemap):
     See: http://en.wikipedia.org/wiki/Median_absolute_deviation
     """
     medianDeviations = _absoluteDeviations(_median, valuemap.values())
+    return _median(medianDeviations), dict(zip(valuemap.keys(), medianDeviations))
+
+
+def madmax(valuemap, themax):
+    """
+    See: http://en.wikipedia.org/wiki/Median_absolute_deviation
+    """
+    medianDeviations = _absoluteDeviations(_median, map(lambda x: x if x < themax else themax, valuemap.values()))
     return _median(medianDeviations), dict(zip(valuemap.keys(), medianDeviations))
 
 

@@ -4,11 +4,13 @@
 # This content is made available according to terms specified in
 # License.zenoss under the directory where your Zenoss product is installed.
 #
+from functools import partial
 import itertools
 import keyword
 import re
 from Products.ZenModel.DeviceHW import DeviceHW
 from Products.ZenModel.OperatingSystem import OperatingSystem
+from Products.ZenModel.ZenModelRM import ZenModelRM
 
 
 def toposort(depDict):
@@ -125,13 +127,32 @@ _reserved = ['avg', 'pct', 'rrd_paths'] + \
 
 def isReserved(name):
     return keyword.iskeyword(name) or \
-           hasattr(__builtins__, name) or \
+           __builtins__.has_key(name) or \
            name in _reserved
 
 
 def getVarNames(expression):
     return itertools.ifilterfalse(isReserved, varNameRe.findall(expression))
 
+
+def _getAndCall(obj, attr, default=None):
+    base = getattr(obj, attr, default)
+    if base is None:
+        return None
+
+    # Backwards-compatibility for 'hw' and 'os' references.
+    if callable(base) and not isinstance(base, (DeviceHW, OperatingSystem)):
+        base = base()
+    return base
+
+
+def _maybeChain(iterables):
+    for it in iterables:
+        if hasattr(it, '__iter__') and not isinstance(it, ZenModelRM):
+            for element in it:
+                yield element
+        else:
+            yield it
 
 def dotTraverse(base, path):
     """
@@ -149,13 +170,19 @@ def dotTraverse(base, path):
         path.pop(0)
 
     while len(path) > 0:
-        base = getattr(base, path.pop(0), None)
         if base is None:
             return None
 
-        # Backwards-compatibility for 'hw' and 'os' references.
-        if callable(base) and not isinstance(base, (DeviceHW, OperatingSystem)):
-            base = base()
+        attr = path.pop(0)
+
+        if hasattr(base, attr):
+            base = _getAndCall(base, attr)
+        elif hasattr(base, '__iter__') and not isinstance(base, ZenModelRM):
+            #if iterable, get the attr for each and chain it
+            getFunc = partial(_getAndCall, attr=attr, default=None)
+            base = list(x for x in _maybeChain(map(getFunc, base)) if x is not None)
+        else:
+            base = None
 
 
     return base
