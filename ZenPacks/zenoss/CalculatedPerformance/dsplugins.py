@@ -19,7 +19,7 @@ from ZenPacks.zenoss.CalculatedPerformance.RRDReadThroughCache import RRDReadThr
 from ZenPacks.zenoss.CalculatedPerformance.utils import toposort, getTargetId, grouper, dotTraverse, getVarNames, createDeviceDictionary
 from ZenPacks.zenoss.PythonCollector.datasources.PythonDataSource \
     import PythonDataSourcePlugin
-
+import pickle
 
 log = logging.getLogger('zen.CalculatingPlugin')
 
@@ -180,6 +180,15 @@ class AggregatingDataSourcePlugin(object):
 class CalculatedDataSourcePlugin(object):
 
     @classmethod
+    def isPicklable(cls, object):
+        try:
+            pickle.dumps(object, pickle.HIGHEST_PROTOCOL)
+            return True
+        except:
+            pass
+        return False
+
+    @classmethod
     def params(cls, datasource, context):
         attrs = {}
         targetDataPoints = []
@@ -190,11 +199,16 @@ class CalculatedDataSourcePlugin(object):
             allDatapointsByVarName[dp.name()] = dp
 
         for att in getVarNames(datasource.expression):
-            value = dotTraverse(context, att)
+
             if att in allDatapointsByVarName:
                 datapoint = allDatapointsByVarName[att]
                 targetDataPoints.append((datapoint.datasource().id, datapoint.id, 'AVERAGE'))
             else:
+                value = dotTraverse(context, att)
+                if not CalculatedDataSourcePlugin.isPicklable(value):
+                    log.error("Calculated Performance expression %s references "
+                        "invalid attribute (unpickable value) %s" %(datasource.expression, att))
+                    return dict()
                 attrs[att] = value
                 if value is None:
                     log.warn(
