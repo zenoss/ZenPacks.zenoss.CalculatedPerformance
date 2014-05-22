@@ -180,7 +180,7 @@ class AggregatingDataSourcePlugin(object):
 class CalculatedDataSourcePlugin(object):
 
     @classmethod
-    def isPickable(cls, object):
+    def isPicklable(cls, object):
         try:
             pickle.dumps(object, pickle.HIGHEST_PROTOCOL)
             return True
@@ -205,7 +205,7 @@ class CalculatedDataSourcePlugin(object):
                 targetDataPoints.append((datapoint.datasource().id, datapoint.id, 'AVERAGE'))
             else:
                 value = dotTraverse(context, att)
-                if not CalculatedDataSourcePlugin.isPickable(value):
+                if not CalculatedDataSourcePlugin.isPicklable(value):
                     log.error("Calculated Performance expression %s references "
                         "invalid attribute (unpickable value) %s" %(datasource.expression, att))
                     return dict()
