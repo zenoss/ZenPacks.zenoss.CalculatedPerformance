@@ -199,15 +199,16 @@ class CalculatedDataSourcePlugin(object):
             allDatapointsByVarName[dp.name()] = dp
 
         for att in getVarNames(datasource.expression):
-            value = dotTraverse(context, att)
-            if not CalculatedDataSourcePlugin.isPickable(value):
-                log.error("Calculated Performance expression %s references "
-                    "invalid attribute (unpickable value) %s" %(datasource.expression, att))
-                return dict()
+
             if att in allDatapointsByVarName:
                 datapoint = allDatapointsByVarName[att]
                 targetDataPoints.append((datapoint.datasource().id, datapoint.id, 'AVERAGE'))
             else:
+                value = dotTraverse(context, att)
+                if not CalculatedDataSourcePlugin.isPickable(value):
+                    log.error("Calculated Performance expression %s references "
+                        "invalid attribute (unpickable value) %s" %(datasource.expression, att))
+                    return dict()
                 attrs[att] = value
                 if value is None:
                     log.warn(
