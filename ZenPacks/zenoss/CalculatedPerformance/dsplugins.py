@@ -50,9 +50,9 @@ def dsTargetKeys(ds):
         targetDatapoints: list of tuples of (datasource_id, datapoint_id, RRA)
     """
     targetKeys = set()
-    for target in ds.params['targets']:
+    for target in ds.params.get('targets', []):
         targetElementId = getTargetId(target)
-        for targetDatapoint in ds.params['targetDatapoints']:
+        for targetDatapoint in ds.params.get('targetDatapoints', []):
             targetKeys.add('%s:%s' % (targetElementId, targetDatapoint[0]))
     return targetKeys
 
@@ -190,6 +190,11 @@ class CalculatedDataSourcePlugin(object):
 
     @classmethod
     def params(cls, datasource, context):
+        config = {
+            'targets': [targetInfo(context)],
+            'expression': datasource.expression
+        }
+
         attrs = {}
         targetDataPoints = []
 
@@ -207,8 +212,8 @@ class CalculatedDataSourcePlugin(object):
                 value = dotTraverse(context, att)
                 if not CalculatedDataSourcePlugin.isPicklable(value):
                     log.error("Calculated Performance expression %s references "
-                        "invalid attribute (unpickable value) %s" %(datasource.expression, att))
-                    return dict()
+                        "invalid attribute (unpicklable value) %s" %(datasource.expression, att))
+                    return config
                 attrs[att] = value
                 if value is None:
                     log.warn(
@@ -216,12 +221,9 @@ class CalculatedDataSourcePlugin(object):
                         "the variable %s which is not in %s" % (
                             datasource.expression, att, allDatapointsByVarName.keys()))
 
-        return dict(
-            obj_attrs = attrs,
-            targetDatapoints = targetDataPoints,
-            targets=[targetInfo(context)],
-            expression=datasource.expression
-        )
+        config['obj_attrs'] = attrs
+        config['targetDatapoints'] = targetDataPoints
+        return config
 
     @inlineCallbacks
     def collect(self, config, datasource, rrdcache, collectionTime):
