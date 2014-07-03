@@ -15,7 +15,7 @@ from Products.ZenModel.DeviceComponent import DeviceComponent
 from Products.ZenUtils.Utils import monkeypatch
 from Products.Zuul import IInfo
 from ZenPacks.zenoss.CalculatedPerformance import operations
-from ZenPacks.zenoss.CalculatedPerformance.RRDReadThroughCache import RRDReadThroughCache
+from ZenPacks.zenoss.CalculatedPerformance.ReadThroughCache import getReadThroughCache
 from ZenPacks.zenoss.CalculatedPerformance.utils import toposort, getTargetId, grouper, dotTraverse, getVarNames, createDeviceDictionary
 from ZenPacks.zenoss.PythonCollector.datasources.PythonDataSource \
     import PythonDataSourcePlugin
@@ -301,7 +301,7 @@ class DerivedDataSourceProxyingPlugin(PythonDataSourcePlugin):
     def __init__(self):
         #This is a per-run cache of latest RRD values by path+RRA, used in case of multiple
         #different aggregated datapoints on a single target datasource.
-        self.rrdcache = RRDReadThroughCache()
+        self.rrdcache = getReadThroughCache()
 
     @classmethod
     def config_key(cls, datasource, context):
