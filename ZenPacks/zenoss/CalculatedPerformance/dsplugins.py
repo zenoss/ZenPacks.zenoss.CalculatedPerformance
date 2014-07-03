@@ -243,7 +243,7 @@ class CalculatedDataSourcePlugin(object):
                                                     datasource.params['targets'][0])
                 # Datapoints can be referenced in the expression by datapoint id alone,
                 # or by datasource_datapoint
-                if value:
+                if value is not None:
                     rrdValues[targetDatapoint] = value
                     rrdValues['%s_%s' % (targetDatasource, targetDatapoint)] = value
 
