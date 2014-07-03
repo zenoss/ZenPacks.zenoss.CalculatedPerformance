@@ -81,7 +81,6 @@ class ReadThroughCache(object):
         readValue = None
         try:
             readValue = self._readLastValue(targetValue, datasource, datapoint, rra, ago)
-            log.error('yay got value: %s' % readValue)
         except StandardError as ex:
             log.error("Failure reading configured datapoint %s on target %s: %s",
                       '%s_%s' % (datasource, datapoint),
