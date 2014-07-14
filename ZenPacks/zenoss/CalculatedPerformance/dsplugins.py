@@ -19,7 +19,7 @@ from ZenPacks.zenoss.CalculatedPerformance.RRDReadThroughCache import RRDReadThr
 from ZenPacks.zenoss.CalculatedPerformance.utils import toposort, getTargetId, grouper, dotTraverse, getVarNames, createDeviceDictionary
 from ZenPacks.zenoss.PythonCollector.datasources.PythonDataSource \
     import PythonDataSourcePlugin
-
+import pickle
 
 log = logging.getLogger('zen.CalculatingPlugin')
 
@@ -50,9 +50,9 @@ def dsTargetKeys(ds):
         targetDatapoints: list of tuples of (datasource_id, datapoint_id, RRA)
     """
     targetKeys = set()
-    for target in ds.params['targets']:
+    for target in ds.params.get('targets', []):
         targetElementId = getTargetId(target)
-        for targetDatapoint in ds.params['targetDatapoints']:
+        for targetDatapoint in ds.params.get('targetDatapoints', []):
             targetKeys.add('%s:%s' % (targetElementId, targetDatapoint[0]))
     return targetKeys
 
@@ -180,7 +180,21 @@ class AggregatingDataSourcePlugin(object):
 class CalculatedDataSourcePlugin(object):
 
     @classmethod
+    def isPicklable(cls, object):
+        try:
+            pickle.dumps(object, pickle.HIGHEST_PROTOCOL)
+            return True
+        except:
+            pass
+        return False
+
+    @classmethod
     def params(cls, datasource, context):
+        config = {
+            'targets': [targetInfo(context)],
+            'expression': datasource.expression
+        }
+
         attrs = {}
         targetDataPoints = []
 
@@ -190,11 +204,16 @@ class CalculatedDataSourcePlugin(object):
             allDatapointsByVarName[dp.name()] = dp
 
         for att in getVarNames(datasource.expression):
-            value = dotTraverse(context, att)
+
             if att in allDatapointsByVarName:
                 datapoint = allDatapointsByVarName[att]
                 targetDataPoints.append((datapoint.datasource().id, datapoint.id, 'AVERAGE'))
             else:
+                value = dotTraverse(context, att)
+                if not CalculatedDataSourcePlugin.isPicklable(value):
+                    log.error("Calculated Performance expression %s references "
+                        "invalid attribute (unpicklable value) %s" %(datasource.expression, att))
+                    return config
                 attrs[att] = value
                 if value is None:
                     log.warn(
@@ -202,12 +221,9 @@ class CalculatedDataSourcePlugin(object):
                         "the variable %s which is not in %s" % (
                             datasource.expression, att, allDatapointsByVarName.keys()))
 
-        return dict(
-            obj_attrs = attrs,
-            targetDatapoints = targetDataPoints,
-            targets=[targetInfo(context)],
-            expression=datasource.expression
-        )
+        config['obj_attrs'] = attrs
+        config['targetDatapoints'] = targetDataPoints
+        return config
 
     @inlineCallbacks
     def collect(self, config, datasource, rrdcache, collectionTime):
@@ -227,12 +243,12 @@ class CalculatedDataSourcePlugin(object):
                                                     datasource.params['targets'][0])
                 # Datapoints can be referenced in the expression by datapoint id alone,
                 # or by datasource_datapoint
-                if value:
+                if value is not None:
                     rrdValues[targetDatapoint] = value
                     rrdValues['%s_%s' % (targetDatasource, targetDatapoint)] = value
 
             result = None
-            if rrdValues:
+            if len(rrdValues) == 2*len(datasource.params['targetDatapoints']):
                 devdict.update(rrdValues)
 
                 try:
