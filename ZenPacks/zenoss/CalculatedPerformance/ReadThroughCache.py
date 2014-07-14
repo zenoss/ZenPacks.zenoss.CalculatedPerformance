@@ -11,7 +11,6 @@ import json
 import logging
 from Products.ZenCollector.interfaces import IDataService
 from Products.ZenUtils.GlobalConfig import getGlobalConfiguration
-from Products.Zuul.interfaces import IAuthorizationTool
 from ZenPacks.zenoss.CalculatedPerformance.utils import getTargetId
 from zope.component import getUtility
 
@@ -140,6 +139,7 @@ class MetricServiceReadThroughCache(ReadThroughCache):
         self._targetKey = 'uuid'
         urlstart = getGlobalConfiguration().get('metric-url', 'http://localhost:8080')
         self._metric_url = '%s/%s' % (urlstart, METRIC_URL_PATH)
+        from Products.Zuul.interfaces import IAuthorizationTool
         creds = IAuthorizationTool(None).extractGlobalConfCredentials()
         auth = base64.b64encode('{login}:{password}'.format(**creds))
         self._headers = {
