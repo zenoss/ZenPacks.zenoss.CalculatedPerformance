@@ -110,7 +110,11 @@ def createDeviceDictionary(obj_attrs):
         # vars['here'].hw.totalMemory = 1024
         # This way, vars can be passed in to eval
         parts = key.split(".")
-        base = vars[parts[0]] = SimpleObject()
+        if parts[0] not in vars:
+            base = vars[parts[0]] = SimpleObject()
+        else:
+            base = vars[parts[0]]
+
         for part in parts[1:-1]:
             if not hasattr(base, part):
                 setattr(base, part, SimpleObject())
