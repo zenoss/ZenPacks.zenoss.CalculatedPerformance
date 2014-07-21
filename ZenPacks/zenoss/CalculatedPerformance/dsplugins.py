@@ -7,6 +7,7 @@
 from itertools import chain, izip
 import logging
 import time
+from pprint import pformat
 from twisted.internet.defer import inlineCallbacks, returnValue
 from Products import Zuul
 
@@ -41,6 +42,23 @@ def dsKey(ds):
         ds.device,
         ds.component or '',
         ds.datasource
+    )
+
+def dsDescription(ds, devdict):
+    return """expression: %s
+dictionary: %s
+context device: %s
+context component: %s
+template: %s
+datasource: %s
+datapoint: %s""" % (
+        ds.params.get('expression', None),
+        pformat(devdict),
+        ds.device,
+        ds.component or '',
+        ds.params.get('template', None),
+        ds.datasource,
+        ds.points[0].id
     )
 
 def dsTargetKeys(ds):
@@ -192,7 +210,9 @@ class CalculatedDataSourcePlugin(object):
     def params(cls, datasource, context):
         config = {
             'targets': [targetInfo(context)],
-            'expression': datasource.expression
+            'expression': datasource.expression,
+            'debug': datasource.debug,
+            'template': datasource.rrdTemplate().getPrimaryId()
         }
 
         attrs = {}
@@ -230,6 +250,7 @@ class CalculatedDataSourcePlugin(object):
         collectedEvents = []
         collectedValues = {}
         expression = datasource.params.get('expression', None)
+        debug = datasource.params.get('debug', None)
         if expression:
             # We will populate this with perf metrics and pass to eval()
             devdict = createDeviceDictionary(datasource.params['obj_attrs'])
@@ -250,28 +271,31 @@ class CalculatedDataSourcePlugin(object):
             result = None
             if len(rrdValues) == 2*len(datasource.params['targetDatapoints']):
                 devdict.update(rrdValues)
+                description = dsDescription(datasource, devdict)
 
                 try:
                     result = eval(expression, devdict)
-                    log.debug("Result of %s --> %s %s", expression, result, dsKey(datasource))
+                    msg = "Evaluation successful, result is %s for %s" % (result, description)
+                    logMethod = log.info if debug else log.debug
+                    logMethod(msg)
                 except ZeroDivisionError:
-                    msg = "Expression for %s (%s) failed: division by zero" % \
-                          (dsKey(datasource), expression)
+                    msg = "Evaluation failed due to attempted division by zero, %s" % description
                     collectedEvents.append({
-                        'summary': msg,
                         'eventKey': 'calculatedDataSourcePlugin_result',
-                        'severity': ZenEventClasses.Error,
+                        'severity': ZenEventClasses.Error if debug else ZenEventClasses.Debug,
+                        'summary': msg,
                     })
-                    log.warn(msg)
+                    logMethod = log.warn if debug else log.debug
+                    logMethod(msg)
                 except (TypeError, Exception) as ex:
-                    msg = "Expression for %s (%s) failed: %s" % \
-                          (dsKey(datasource), expression, ex.message)
+                    msg = "Evaluation failed due to %s, %s" % (ex.message, description)
                     collectedEvents.append({
-                        'summary': msg,
                         'eventKey': 'calculatedDataSourcePlugin_result',
-                        'severity': ZenEventClasses.Error,
-                        })
-                    log.exception(msg + "\n%s", ex)
+                        'severity': ZenEventClasses.Error if debug else ZenEventClasses.Debug,
+                        'summary': msg,
+                    })
+                    logMethod = log.exception if debug else log.debug
+                    logMethod(msg + "\n%s", ex)
             else:
                 log.debug("Can't get RRD values for EXPR: %s --> DS: %s" % (expression, dsKey(datasource)))
 

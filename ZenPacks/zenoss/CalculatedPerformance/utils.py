@@ -5,6 +5,7 @@
 # License.zenoss under the directory where your Zenoss product is installed.
 #
 from functools import partial
+from pprint import pformat
 import itertools
 import keyword
 import re
@@ -58,7 +59,8 @@ class SimpleObject(object):
     """
     Simple class that can have arbitrary attributes assigned to it.
     """
-    pass
+    def __repr__(self):
+        return 'SimpleObject: %s' % pformat(self.__dict__)
 
 
 # These methods will be added to the evaluation locals for the calculated expressions

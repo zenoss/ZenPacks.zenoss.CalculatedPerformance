@@ -74,3 +74,5 @@ class ICalculatedPerformanceDataSourceInfo(IRRDDataSourceInfo):
         title=_t(u'Expression'),
         group=_t('Detail'),
         xtype='twocolumntextarea')
+
+    debug = schema.Bool(title=_t(u'Verbose Debug Logging'))

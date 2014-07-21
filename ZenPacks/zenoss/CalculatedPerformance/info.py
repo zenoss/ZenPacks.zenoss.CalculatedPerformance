@@ -45,6 +45,7 @@ class CalculatedPerformanceDataSourceInfo(RRDDataSourceInfo):
 
     description = ProxyProperty('description')
     expression = ProxyProperty('expression')
+    debug = ProxyProperty('debug')
 
     testable =False
 
