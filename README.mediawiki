@@ -88,6 +88,10 @@ You must create these components at modeling time like any other component. Then
 
 == Changes ==
 
+;2.0.1 - 2014-07-14
+* Fix ZEN-11832: Hub will now at least send 'targets' and 'expression' when things are wrong. Collection method now will allow some missing things from the params dict.
+* Fix misc issues causing `Nan`s to show up in graphs.
+
 ;2.0.1 - 2014-05-20
 * Ability to concatenate iterables in expressions and methods (Ex: `hw.interfaces.operspeed` = `[1000000000, 1000000000]` with 2 interfaces.)
 * New 'madmax' aggregate operation, for Median Absolute Deviation calculations on values restricted to a maximum.
