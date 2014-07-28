@@ -35,6 +35,7 @@ class AggregatingDataSourceInfo(RRDDataSourceInfo):
     rra = ProxyProperty('targetRRA')
 
     testable = False
+    debug = ProxyProperty('debug')
 
 
 class CalculatedPerformanceDataSourceInfo(RRDDataSourceInfo):
@@ -47,7 +48,7 @@ class CalculatedPerformanceDataSourceInfo(RRDDataSourceInfo):
     expression = ProxyProperty('expression')
     debug = ProxyProperty('debug')
 
-    testable =False
+    testable = False
 
 
 class AggregatingDataPointInfo(DataPointInfo):

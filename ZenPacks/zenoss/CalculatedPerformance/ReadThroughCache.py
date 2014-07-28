@@ -39,13 +39,20 @@ class ReadThroughCache(object):
                                  'rrdpath': 'Devices/localhost/os/interfaces/eth0',
                                  'uid': '/zport/dmd/Devices/Server/Linux/devices/localhost/os/interfaces/eth0',
                                  'uuid': 'c35cdc58-a630-42be-b2d4-861c5c02362c'}]
-        @return: a dictionary of {uuid -> last value} for each target element
+        @return: 2 item tuple, containing:
+            a dictionary of {uuid -> last value} for each target element,
+            a list of tuples of exceptions, messages
         """
-        valueMap = {
-            targetConfig['uuid']: self.getLastValue(datasource, datapoint, rra, ago, targetConfig)
-            for targetConfig in targets
-        }
-        return {k: v for k, v in valueMap.items() if v is not None}
+        valueMap = {}
+        errors = []
+        for targetConfig in targets:
+            try:
+                valueMap[targetConfig['uuid']] = self.getLastValue(datasource, datapoint, rra, ago, targetConfig)
+            except StandardError as ex:
+                msg = "Failure reading configured datapoint %s_%s on target %s" % \
+                      (datasource, datapoint, getTargetId(targetConfig))
+                errors.append((ex, msg))
+        return {k: v for k, v in valueMap.items() if v is not None}, errors
 
     def getLastValue(self, datasource, datapoint, rra='AVERAGE', ago=300, targetConfig={}):
         """
@@ -77,14 +84,7 @@ class ReadThroughCache(object):
             log.debug("Using cached value for %s: %s", cachekey, self._cache[cachekey])
             return self._cache[cachekey]
 
-        readValue = None
-        try:
-            readValue = self._readLastValue(targetValue, datasource, datapoint, rra, ago)
-        except StandardError as ex:
-            log.error("Failure reading configured datapoint %s on target %s: %s",
-                      '%s_%s' % (datasource, datapoint),
-                      getTargetId(targetConfig),
-                      ex)
+        readValue = self._readLastValue(targetValue, datasource, datapoint, rra, ago)
 
         if readValue is not None:
             self._cache[cachekey] = readValue
