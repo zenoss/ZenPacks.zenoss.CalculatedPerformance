@@ -115,23 +115,29 @@ class AggregatingDataSourcePlugin(object):
             targetDatapoints = [(datasource.targetDataSource, datasource.targetDataPoint,
                                  datasource.targetRRA or 'AVERAGE')],
             targetArgValues=[tuple(targetArgValues)],
-            targets=targetInfos
+            targets=targetInfos,
+            debug=datasource.debug
         )
 
     @inlineCallbacks
     def collect(self, config, datasource, rrdcache, collectionTime):
         collectedEvents = []
         collectedValues = {}
+        debug = datasource.params.get('debug', None)
 
         #Aggregate datasources only have one target datapoint config
         targetDatasource, targetDatapoint, targetRRA = datasource.params['targetDatapoints'][0]
 
-        targetValues = yield self.getLastValues(rrdcache,
+        targetValues, errors = yield self.getLastValues(rrdcache,
                                                 targetDatasource,
                                                 targetDatapoint,
                                                 targetRRA,
                                                 datasource.cycletime,
                                                 datasource.params['targets'])
+
+        logMethod = log.error if debug else log.debug
+        for ex, msg in errors:
+            logMethod('%s: %s', msg, ex)
 
         if not targetValues:
             if datasource.params['targets']:
@@ -139,10 +145,15 @@ class AggregatingDataSourcePlugin(object):
                 collectedEvents.append({
                     'summary': msg,
                     'eventKey': 'aggregatingDataSourcePlugin_novalues',
-                    'severity': ZenEventClasses.Info,
+                    'severity': ZenEventClasses.Info if debug else ZenEventClasses.Debug,
                 })
-                log.info(msg)
-            return
+                logMethod = log.info if debug else log.debug
+                logMethod(msg)
+
+            returnValue({
+                'events': collectedEvents,
+                'values': collectedValues,
+            })
 
         for datapoint in datasource.points:
             try:
@@ -150,9 +161,10 @@ class AggregatingDataSourcePlugin(object):
                     datapoint.operation,
                     handleArguments(datasource.params['targetArgValues'][0], datapoint.arguments),
                     targetValues)
-                log.debug("Aggregate value %s calculated for datapoint %s_%s on %s:%s",
-                          str(aggregate), datasource.datasource, datapoint.id,
-                          datasource.device, datasource.component)
+                if debug:
+                    log.debug("Aggregate value %s calculated for datapoint %s_%s on %s:%s",
+                              str(aggregate), datasource.datasource, datapoint.id,
+                              datasource.device, datasource.component)
             except Exception as ex:
                 msg = "Error calculating aggregation for %s_%s: %s" % (
                     targetDatasource,
@@ -182,10 +194,12 @@ class AggregatingDataSourcePlugin(object):
     @inlineCallbacks
     def getLastValues(self, rrdcache, datasource, datapoint, rra='AVERAGE', cycleTime=300, targets=()):
         values = {}
+        errors = []
         for chunk in grouper(RRD_READ_CHUNKS, targets):
-            chunkDict = yield rrdcache.getLastValues(datasource, datapoint, rra, cycleTime*5, chunk)
+            chunkDict, chunkErrors = yield rrdcache.getLastValues(datasource, datapoint, rra, cycleTime*5, chunk)
             values.update(chunkDict)
-        returnValue(values)
+            errors.extend(chunkErrors)
+        returnValue((values, errors))
 
     def performAggregation(self, operationId, arguments, targetValues):
         try:
@@ -257,16 +271,27 @@ class CalculatedDataSourcePlugin(object):
 
             rrdValues = {}
             for targetDatasource, targetDatapoint, targetRRA in datasource.params['targetDatapoints']:
-                value = yield rrdcache.getLastValue(targetDatasource,
-                                                    targetDatapoint,
-                                                    targetRRA,
-                                                    datasource.cycletime*5,
-                                                    datasource.params['targets'][0])
-                # Datapoints can be referenced in the expression by datapoint id alone,
-                # or by datasource_datapoint
-                if value is not None:
-                    rrdValues[targetDatapoint] = value
-                    rrdValues['%s_%s' % (targetDatasource, targetDatapoint)] = value
+                try:
+                    value = yield rrdcache.getLastValue(targetDatasource,
+                                                        targetDatapoint,
+                                                        targetRRA,
+                                                        datasource.cycletime*5,
+                                                        datasource.params['targets'][0])
+                    # Datapoints can be referenced in the expression by datapoint id alone,
+                    # or by datasource_datapoint
+                    if value is not None:
+                        rrdValues[targetDatapoint] = value
+                        rrdValues['%s_%s' % (targetDatasource, targetDatapoint)] = value
+                except StandardError as ex:
+                    description = dsDescription(datasource, devdict)
+                    msg = "Failure before evaluation, %s" % description
+                    collectedEvents.append({
+                        'eventKey': 'calculatedDataSourcePlugin_result',
+                        'severity': ZenEventClasses.Error if debug else ZenEventClasses.Debug,
+                        'summary': msg,
+                    })
+                    logMethod = log.error if debug else log.debug
+                    logMethod(msg + "\n%s", ex)
 
             result = None
             if len(rrdValues) == 2*len(datasource.params['targetDatapoints']):
@@ -275,9 +300,8 @@ class CalculatedDataSourcePlugin(object):
 
                 try:
                     result = eval(expression, devdict)
-                    msg = "Evaluation successful, result is %s for %s" % (result, description)
-                    logMethod = log.info if debug else log.debug
-                    logMethod(msg)
+                    if debug:
+                        log.debug("Evaluation successful, result is %s for %s" % (result, description))
                 except ZeroDivisionError:
                     msg = "Evaluation failed due to attempted division by zero, %s" % description
                     collectedEvents.append({

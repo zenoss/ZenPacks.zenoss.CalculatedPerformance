@@ -39,12 +39,14 @@ class AggregatingDataSource(PythonDataSource):
     targetDataSource = ''
     targetDataPoint = ''
     targetRRA = 'AVERAGE'
+    debug = True
 
     _properties = RRDDataSource._properties + (
         {'id': 'targetMethod', 'type': 'string'},
         {'id': 'targetDataSource', 'type': 'string'},
         {'id': 'targetDataPoint', 'type': 'string'},
         {'id': 'targetRRA', 'type': 'string'},
+        {'id': 'debug', 'type': 'boolean', 'mode': 'w'},
     )
 
     security = ClassSecurityInfo()

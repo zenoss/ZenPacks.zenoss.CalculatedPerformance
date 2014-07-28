@@ -36,6 +36,7 @@ class IAggregatingDataSourceInfo(IRRDDataSourceInfo):
         title=_t(u'RRA'),
         group=_t(u'Target')
     )
+    debug = schema.Bool(title=_t(u'Verbose Debug Logging'))
 
 
 class IAggregatingDataPointInfo(IDataPointInfo):
