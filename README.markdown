@@ -27,9 +27,29 @@ Derived datapoints are only based on the most recent available data from target 
 
 ### Calculated Performance
 
-A Calculated Performance datasource contains a Python expression whose result will be stored as the value of the single datapoint. The expression can reference any other datapoint or model attribute on the device or component. For example, the expression `(hw.totalMemory – memAvailReal) / hw.totalMemory` uses the totalMemory attribute modeled from the device and the datapoint memAvailReal to calculate a percentage used. Dotted-name model attributes can reference functions or relationships as long as they take no arguments. Datapoints can be referenced using only the datapoint name, or as datasource_datapoint. If there are model attributes and datapoints that have a name conflict, the datapoint's value will be used. To disambiguate, you can use `here.attribute` to specify a model attribute, and the `datasource_datapoint` name to specify a datapoint.
+A Calculated Performance datasource contains a Python expression whose result will be stored as the value of the single datapoint. The expression can reference any other datapoint or model attribute on the device or component. For example, the expression `(hw.totalMemory – memAvailReal) / hw.totalMemory` uses the totalMemory attribute modeled from the device and the datapoint memAvailReal to calculate a percentage used. Dotted-name model attributes can reference functions or relationships as long as they take no arguments.
 
-In v2.0, the capabilities of the expression have been expanded. Any `eval`-able Python code can be used, including control structures and any built-in functions, as long as it returns a single numeric value. This means that any Python keyword (See: [keyword.kwlist](https://docs.python.org/2/library/keyword.html##keyword.kwlist)) and any Python builtin (See: [builtins](https://docs.python.org/2/library/functions.html)) are reserved words that cannot be used as attribute or datapoint names. If a model attribute or datapoint has a name conflict with a reserved identifier, the `here.attribute` or `datasource_datapoint` syntax will resolve the issue.
+The expression can reference datapoints using any of the following syntaxes. Replace *dsname* with the name of your datasource and *dpname* with the name of your datapoint.
+
+1. 	*dpname*
+
+	This option is the simplest if you know that your datapoint name is unique for the device or component to which it's bound, and the datapoint name is a valid Python variable name (i.e. it contains no hyphens.)
+
+2. 	*dsname_dpname*
+
+	This option should be used if there's a chance that your datapoint name is not unique for the device or component. Using the datasource name's then an underscore as a prefix guarantees uniqueness. This option requires that both the datasource and datapoint name be valid Python variables names. Support for this syntax was added in version 1.0.7.
+
+3.	`datapoint['`*dpname*`']`
+
+	This option can be used if the datapoint's name is not a valid Python variable name and the datapoint is unique for the device or component to which it's bound. Support for this syntax was added in version 2.0.3.
+
+4.	`datapoint['`*dsname_dpname*`']`
+
+	This is the most verbose, but safest option. It can be used when the datapoint name is not unique, and either the datasource or datapoint name is not a valid Python variables name. Support for this syntax was added in version 2.0.3.
+
+If there are model attributes and datapoints that have a name conflict, the datapoint's value will be used. To disambiguate, you can use `here.attribute` to specify a model attribute, and the `dsname_dpname` name to specify a datapoint.
+
+In v2.0, the capabilities of the expression have been expanded. Any `eval`-able Python code can be used, including control structures and any built-in functions, as long as it returns a single numeric value. This means that any Python keyword (See: [keyword.kwlist](https://docs.python.org/2/library/keyword.html##keyword.kwlist)) and any Python builtin (See: [builtins](https://docs.python.org/2/library/functions.html)) are reserved words that cannot be used as attribute or datapoint names. If a model attribute or datapoint has a name conflict with a reserved identifier, the `here.attribute` or `dsname_dpname` syntax will resolve the issue.
 
 In addition, the expression has access to a few provided utility functions:
 
@@ -45,7 +65,7 @@ A Datapoint Aggregator datasource is a datasource like any other: it resides in 
 
 The elements to collect from are controlled by the configured Target Method name. This can be any method or relationship present on the element type to which the template will be bound, and must require no arguments. This method must return an iterable of all elements against which we will collect. For example, for an aggregate datasource on a device, we could collect from all of its components by setting this field to `getMonitoredComponents` or from all of its interfaces by using `os.interfaces`. By default, the method is `getElements`, which is expected to be used on a custom ElementPool component. See: [Implementing a Custom ElementPool Component](##bookmark=id.34wzelyfww68).
 
-The datapoint to collect from each element is specified by the Datasource, Datapoint, and RRA fields. As expected, this will collect the value from datasource_datapoint:RRA on each target element before aggregating the set of values.
+The datapoint to collect from each element is specified by the Datasource, Datapoint, and RRA fields. As expected, this will collect the value from dsname_dpname:RRA on each target element before aggregating the set of values.
 
 A datapoint on a Datapoint Aggregator type datasource provides the configuration of the aggregation operation to perform on the set of collected values. Multiple such datapoints can be configured on a single datasource to perform several aggregations on the same set of data. The 'Operation' field must be one of the available operations provided by the ZenPack. Some operations may take additional arguments, which should be a string of comma-separated values in the 'Arguments' field.
 
@@ -105,7 +125,10 @@ You must create these components at modeling time like any other component. Then
 
 ## Changes
 
-**2.0.1 - 2014-07-14**
+**2.0.3 - 2014-09-11**
+* Add new datapoint['dpname'] expression syntax for hyphenated datapoint names. (ZEN-12489)
+
+**2.0.2 - 2014-07-14**
 * Fix ZEN-11832: Hub will now at least send 'targets' and 'expression' when things are wrong. Collection method now will allow some missing things from the params dict.
 * Fix misc issues causing `Nan`s to show up in graphs.
 
@@ -133,7 +156,7 @@ You must create these components at modeling time like any other component. Then
 * Stop defaulting missing datapoints to 0. [https://jira.zenoss.com/browse/ZEN-9610](ZEN-9610)
 
 **1.0.7 - 2013-07-15**
-* Allow short name (`datapoint`) or long name (`datasource_datapoint`) in calculations.
+* Allow short name (`dpname`) or long name (`dsname_dpname`) in calculations.
 
 **1.0.6 - 2013-06-19**
 * Remove broken 'Test' button from datasource dialog. [https://github.com/zenoss/ZenPacks.zenoss.CalculatedPerformance/issues/1](##1)
