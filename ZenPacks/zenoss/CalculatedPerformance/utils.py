@@ -120,8 +120,11 @@ def createDeviceDictionary(obj_attrs):
     return vars
 
 
-varNameRe = re.compile(r"[A-Za-z][A-Za-z0-9_\.]*")
-_reserved = ['avg', 'pct', 'rrd_paths'] + \
+varNameRe = re.compile(
+    r"(?<=datapoint\[['\"])[^'\"]+(?=['\"]\])|"  # datapoint['dpname']
+    r"[A-Za-z][A-Za-z0-9_\.]*")  # dpname
+
+_reserved = ['avg', 'pct', 'rrd_paths', 'datapoint'] + \
             ['x', 'y', 'i', 'j'] # These are not keywords, but will be ignored so that lists can be used
 
 
