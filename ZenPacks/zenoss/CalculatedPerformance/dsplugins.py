@@ -270,6 +270,9 @@ class CalculatedDataSourcePlugin(object):
             devdict = createDeviceDictionary(datasource.params['obj_attrs'])
 
             rrdValues = {}
+            datapointDict = {}
+            gotAllRRDValues = True
+
             for targetDatasource, targetDatapoint, targetRRA in datasource.params['targetDatapoints']:
                 try:
                     value = yield rrdcache.getLastValue(targetDatasource,
@@ -277,11 +280,7 @@ class CalculatedDataSourcePlugin(object):
                                                         targetRRA,
                                                         datasource.cycletime*5,
                                                         datasource.params['targets'][0])
-                    # Datapoints can be referenced in the expression by datapoint id alone,
-                    # or by datasource_datapoint
-                    if value is not None:
-                        rrdValues[targetDatapoint] = value
-                        rrdValues['%s_%s' % (targetDatasource, targetDatapoint)] = value
+
                 except StandardError as ex:
                     description = dsDescription(datasource, devdict)
                     msg = "Failure before evaluation, %s" % description
@@ -293,9 +292,54 @@ class CalculatedDataSourcePlugin(object):
                     logMethod = log.error if debug else log.debug
                     logMethod(msg + "\n%s", ex)
 
+                    continue
+
+                # Datapoints can be specified in the following ways:
+                #
+                # 1. <dpname>
+                # 2. <dsname>_<dpname>
+                # 3. datapoint['<dpname>']
+                # 4. datapoint['<dsname>_<dpname>']
+                #
+                # Option 1 and 3 can only be used in cases where the
+                # referenced datapoint names are unique for the device
+                # or component.
+                #
+                # Option 1 and 2 can only be used when the datapoint or
+                # datasource_datapoint name are valid Python variable
+                # names.
+                #
+                # Option 4 can only be used when there is not a
+                # datapoint literally named "datapoint". This is most
+                # likely the safest option if you can avoid naming your
+                # datapoints "datapoint".
+
+                if value is None:
+                    gotAllRRDValues = False
+                else:
+                    fqdpn = '%s_%s' % (targetDatasource, targetDatapoint)
+
+                    # Syntax 1
+                    rrdValues[targetDatapoint] = value
+
+                    # Syntax 2
+                    rrdValues[fqdpn] = value
+
+                    # Syntax 3
+                    datapointDict[targetDatapoint] = value
+
+                    # Syntax 4
+                    datapointDict[fqdpn] = value
+
+                if value is not None:
+                    rrdValues[targetDatapoint] = value
+                    rrdValues['%s_%s' % (targetDatasource, targetDatapoint)] = value
+
             result = None
-            if len(rrdValues) == 2*len(datasource.params['targetDatapoints']):
+            if gotAllRRDValues:
                 devdict.update(rrdValues)
+                devdict['datapoint'] = datapointDict
+
                 description = dsDescription(datasource, devdict)
 
                 try:
