@@ -25,3 +25,10 @@ class AggregatingDataPoint(RRDDataPoint):
         {'id':'operation', 'type':'string', 'mode':'w'},
         {'id':'arguments', 'type':'string', 'mode':'w'},
     )
+
+    def getDescription(self):
+        if self.arguments:
+            return "%s(%s, %s)" % (self.operation, self.arguments, '<targets>')
+        else:
+            return "%s(%s)" % (self.operation, '<targets>')
+
