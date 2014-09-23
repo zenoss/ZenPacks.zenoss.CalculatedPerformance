@@ -46,15 +46,15 @@ class TestRRDReadThroughCache(BaseTestCase):
             _readLastValue.return_value = 54.11
             for testKey in testKeys:
                 self.assertNotIn(testKey, cache._cache)
-            self.assertDictEqual(cache.getLastValues('ds', 'dp', 'rra', 1, targets),
+            self.assertDictEqual(cache.getLastValues('ds', 'dp', 'rra', 1, targets)[0],
                                  {'1': 54.11, '2': 54.11})
             for testKey in testKeys:
                 self.assertIn(testKey, cache._cache)
             _readLastValue.return_value = 65.43
-            self.assertDictEqual(cache.getLastValues('ds', 'dp', 'rra', 1, targets),
+            self.assertDictEqual(cache.getLastValues('ds', 'dp', 'rra', 1, targets)[0],
                                  {'1': 54.11, '2': 54.11})
             _readLastValue.return_value = None
-            self.assertDictEqual(cache.getLastValues('ds', 'dp', 'rra', 1, targets),
+            self.assertDictEqual(cache.getLastValues('ds', 'dp', 'rra', 1, targets)[0],
                                  {'1': 54.11, '2': 54.11})
 
     def testInvalidate(self):
