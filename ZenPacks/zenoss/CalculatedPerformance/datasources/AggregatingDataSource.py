@@ -51,6 +51,12 @@ class AggregatingDataSource(PythonDataSource):
 
     security = ClassSecurityInfo()
 
+    def getDescription(self):
+        description = self.description or \
+            "Aggregation of %s_%s:%s over %s" % \
+            (self.targetDataSource, self.targetDataPoint, self.targetRRA, self.targetMethod)
+        return description
+
     security.declareProtected(ZEN_MANAGE_DMD, 'manage_addRRDDataPoint')
     def manage_addRRDDataPoint(self, id, REQUEST=None):
         """
