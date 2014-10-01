@@ -111,12 +111,13 @@ class AggregatingDataSourcePlugin(object):
             # should be only datapoint, so ...
             break
 
+        zDebug = context.getZ('zDatasourceDebugLogging')
         return dict(
             targetDatapoints = [(datasource.targetDataSource, datasource.targetDataPoint,
                                  datasource.targetRRA or 'AVERAGE')],
             targetArgValues=[tuple(targetArgValues)],
             targets=targetInfos,
-            debug=datasource.debug
+            debug=datasource.debug or zDebug
         )
 
     @inlineCallbacks
@@ -222,10 +223,11 @@ class CalculatedDataSourcePlugin(object):
 
     @classmethod
     def params(cls, datasource, context):
+        zDebug = context.getZ('zDatasourceDebugLogging')
         config = {
             'targets': [targetInfo(context)],
             'expression': datasource.expression,
-            'debug': datasource.debug,
+            'debug': datasource.debug or zDebug,
             'template': datasource.rrdTemplate().getPrimaryId()
         }
 
