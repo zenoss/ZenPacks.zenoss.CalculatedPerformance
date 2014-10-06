@@ -1,6 +1,6 @@
-# 
+#
 # Copyright (C) Zenoss, Inc. 2014, all rights reserved.
-# 
+#
 # This content is made available according to terms specified in
 # License.zenoss under the directory where your Zenoss product is installed.
 #
@@ -20,6 +20,7 @@ from ZenPacks.zenoss.CalculatedPerformance.ReadThroughCache import getReadThroug
 from ZenPacks.zenoss.CalculatedPerformance.utils import toposort, getTargetId, grouper, dotTraverse, getVarNames, createDeviceDictionary
 from ZenPacks.zenoss.PythonCollector.datasources.PythonDataSource \
     import PythonDataSourcePlugin
+from ZenPacks.zenoss.CalculatedPerformance.AggregatingDataPoint import AggregatingDataPoint
 import pickle
 
 log = logging.getLogger('zen.CalculatingPlugin')
@@ -106,8 +107,10 @@ class AggregatingDataSourcePlugin(object):
 
         targetArgValues = []
         for datapoint in datasource.datapoints():
-            for att in getVarNames(datapoint.arguments.strip()):
-                targetArgValues.append(dotTraverse(context, att))
+            if isinstance(datapoint, AggregatingDataPoint):
+                for att in getVarNames(datapoint.arguments.strip()):
+                    targetArgValues.append(dotTraverse(context, att))
+
             # should be only datapoint, so ...
             break
 
