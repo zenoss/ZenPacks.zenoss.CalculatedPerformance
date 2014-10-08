@@ -110,6 +110,8 @@ class AggregatingDataSourcePlugin(object):
             if isinstance(datapoint, AggregatingDataPoint):
                 for att in getVarNames(datapoint.arguments.strip()):
                     targetArgValues.append(dotTraverse(context, att))
+            else:
+                log.error("datasource %s has a datapoint of the wrong type %s" % (datasource, datapoint))
 
             # should be only datapoint, so ...
             break
