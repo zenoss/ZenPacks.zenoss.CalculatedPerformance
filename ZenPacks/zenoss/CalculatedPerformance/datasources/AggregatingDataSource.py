@@ -39,15 +39,23 @@ class AggregatingDataSource(PythonDataSource):
     targetDataSource = ''
     targetDataPoint = ''
     targetRRA = 'AVERAGE'
+    debug = True
 
     _properties = RRDDataSource._properties + (
         {'id': 'targetMethod', 'type': 'string'},
         {'id': 'targetDataSource', 'type': 'string'},
         {'id': 'targetDataPoint', 'type': 'string'},
         {'id': 'targetRRA', 'type': 'string'},
+        {'id': 'debug', 'type': 'boolean', 'mode': 'w'},
     )
 
     security = ClassSecurityInfo()
+
+    def getDescription(self):
+        description = self.description or \
+            "Aggregation of %s_%s:%s over %s" % \
+            (self.targetDataSource, self.targetDataPoint, self.targetRRA, self.targetMethod)
+        return description
 
     security.declareProtected(ZEN_MANAGE_DMD, 'manage_addRRDDataPoint')
     def manage_addRRDDataPoint(self, id, REQUEST=None):

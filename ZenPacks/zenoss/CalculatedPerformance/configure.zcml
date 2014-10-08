@@ -92,5 +92,11 @@
 
     </configure>
 
+    <!-- Custom Form Builders -->
+    <adapter provides="Products.Zuul.form.interfaces.IFormBuilder"
+         for=".info.ElementPoolInfo"
+         factory=".form.builder.FilteredComponentFormBuilder"
+         />
+
 </configure>
 

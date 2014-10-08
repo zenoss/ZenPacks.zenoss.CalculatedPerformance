@@ -43,10 +43,12 @@ class CalculatedPerformanceDataSource(PythonDataSource):
     oid = ''
     usessh = False
     parser = ""
+    debug = True
     _properties = BasicDataSource._properties + (
         {'id': 'description', 'type': 'string', 'mode': 'w'},
         {'id': 'expression', 'type': 'string', 'mode': 'w'},
         {'id': 'cycletime', 'type': 'int', 'mode': 'w'},
+        {'id': 'debug', 'type': 'boolean', 'mode': 'w'},
         )
 
     security = ClassSecurityInfo()

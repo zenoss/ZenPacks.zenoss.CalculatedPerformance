@@ -5,6 +5,7 @@
 # License.zenoss under the directory where your Zenoss product is installed.
 #
 from functools import partial
+from pprint import pformat
 import itertools
 import keyword
 import re
@@ -58,7 +59,8 @@ class SimpleObject(object):
     """
     Simple class that can have arbitrary attributes assigned to it.
     """
-    pass
+    def __repr__(self):
+        return 'SimpleObject: %s' % pformat(self.__dict__)
 
 
 # These methods will be added to the evaluation locals for the calculated expressions
@@ -110,7 +112,11 @@ def createDeviceDictionary(obj_attrs):
         # vars['here'].hw.totalMemory = 1024
         # This way, vars can be passed in to eval
         parts = key.split(".")
-        base = vars[parts[0]] = SimpleObject()
+        if parts[0] not in vars:
+            base = vars[parts[0]] = SimpleObject()
+        else:
+            base = vars[parts[0]]
+
         for part in parts[1:-1]:
             if not hasattr(base, part):
                 setattr(base, part, SimpleObject())
