@@ -125,6 +125,9 @@ You must create these components at modeling time like any other component. Then
 
 ## Changes
 
+**2.0.5 - 2014-09-11**
+* Use a requests Session and cache at the class level to reduce authentication load. (ZEN-15835)
+
 **2.0.4 - 2014-10-08**
 * Descriptions added to aggregating datasources.
 * Add zDatasourceDebugLogging property to debug calculated/aggregated datasources on a single device.
