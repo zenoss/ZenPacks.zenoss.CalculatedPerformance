@@ -6,7 +6,6 @@
 #
 from datetime import datetime, timedelta
 import base64
-import cookielib
 import json
 import logging
 from Products.ZenCollector.interfaces import IDataService
@@ -129,9 +128,10 @@ class RRDReadThroughCache(ReadThroughCache):
                 return nonNans[-1][0]
 
 class MetricServiceReadThroughCache(ReadThroughCache):
+    
+    _requests = None
+
     def __init__(self):
-        import requests
-        self._requests = requests
         from Products.Zuul.facades.metricfacade import DATE_FORMAT, METRIC_URL_PATH, AGGREGATION_MAPPING
         self._datefmt = DATE_FORMAT
         self._aggMapping = AGGREGATION_MAPPING
@@ -144,9 +144,9 @@ class MetricServiceReadThroughCache(ReadThroughCache):
         auth = base64.b64encode('{login}:{password}'.format(**creds))
         self._headers = {
             'Authorization': 'basic %s' % auth,
-            'content-type': 'application/json'
+            'content-type': 'application/json',
+            'User-Agent': 'Zenoss: ZenPacks.zenoss.CalculatedPerformance'
         }
-        self._cookies = cookielib.CookieJar()
 
     def _readLastValue(self, uuid, datasource, datapoint, rra='AVERAGE', ago=300):
         metrics = []
@@ -168,7 +168,7 @@ class MetricServiceReadThroughCache(ReadThroughCache):
             metrics=metrics
         )
         response = self._requests.post(self._metric_url, json.dumps(request),
-                headers=self._headers, cookies=self._cookies)
+                headers=self._headers)
         if response.status_code > 199 and response.status_code < 300:
             results = response.json()['results']
             if results and results[0]['datapoints']:
@@ -177,6 +177,9 @@ class MetricServiceReadThroughCache(ReadThroughCache):
 def getReadThroughCache():
     try:
         import Products.Zuul.facades.metricfacade
+        if not MetricServiceReadThroughCache._requests:
+            import requests
+            MetricServiceReadThroughCache._requests = requests.Session()
         return MetricServiceReadThroughCache()
     except ImportError, e:
         # must be 4.x
