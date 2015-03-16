@@ -1,6 +1,6 @@
-# 
+#
 # Copyright (C) Zenoss, Inc. 2014, all rights reserved.
-# 
+#
 # This content is made available according to terms specified in
 # License.zenoss under the directory where your Zenoss product is installed.
 #
@@ -83,8 +83,7 @@ class ReadThroughCache(object):
         if cachekey in self._cache:
             log.debug("Using cached value for %s: %s", cachekey, self._cache[cachekey])
             return self._cache[cachekey]
-
-        readValue = self._readLastValue(targetValue, datasource, datapoint, rra, ago)
+        readValue = self._readLastValue(targetValue, datasource, datapoint, rra, ago, targetConfig)
 
         if readValue is not None:
             self._cache[cachekey] = readValue
@@ -115,7 +114,7 @@ class RRDReadThroughCache(ReadThroughCache):
         from Products.ZenModel.PerformanceConf import performancePath
         self._performancePath = performancePath
 
-    def _readLastValue(self, targetPath, datasource, datapoint, rra='AVERAGE', ago=300):
+    def _readLastValue(self, targetPath, datasource, datapoint, rra='AVERAGE', ago=300, targetConfig={}):
         realPath = self._performancePath(targetPath) + '/%s_%s.rrd' % (datasource, datapoint)
         result = getUtility(IDataService).readRRD(realPath, rra, 'now-%ds' % ago, 'now')
 
@@ -148,14 +147,22 @@ class MetricServiceReadThroughCache(ReadThroughCache):
         }
         self._cookies = cookielib.CookieJar()
 
-    def _readLastValue(self, uuid, datasource, datapoint, rra='AVERAGE', ago=300):
+    def _readLastValue(self, uuid, datasource, datapoint, rra='AVERAGE', ago=300, targetConfig={}):
+        from Products.ZenUtils.metrics import ensure_prefix
         metrics = []
+        if targetConfig.get('device'):
+            deviceId = targetConfig['device']['id']
+        else:
+            deviceId = targetConfig.get('id')
+        if not deviceId:
+            return None
+        name = ensure_prefix(deviceId, datasource + "_" + datapoint)
         metrics.append(dict(
-            metric=datapoint,
+            metric=name,
             aggregator=self._aggMapping.get(rra.lower(), rra.lower()),
             rpn='',
             format='%.2lf',
-            tags=dict(uuid=[uuid], datasource=[datasource]),
+            tags=dict(contextUUID=[uuid]),
             rate=False,
             name='%s_%s' % (uuid, datapoint)
         ))
@@ -171,7 +178,7 @@ class MetricServiceReadThroughCache(ReadThroughCache):
                 headers=self._headers, cookies=self._cookies)
         if response.status_code > 199 and response.status_code < 300:
             results = response.json()['results']
-            if results and results[0]['datapoints']:
+            if results and results[0].get('datapoints'):
                 return results[0]['datapoints'][-1]['value']
 
 def getReadThroughCache():
