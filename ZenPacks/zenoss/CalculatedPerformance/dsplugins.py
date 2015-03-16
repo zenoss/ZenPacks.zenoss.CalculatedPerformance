@@ -259,8 +259,8 @@ class CalculatedDataSourcePlugin(object):
                 if value is None:
                     log.warn(
                         "Calculated Performance expression %s references "
-                        "the variable %s which is not in %s" % (
-                            datasource.expression, att, allDatapointsByVarName.keys()))
+                        "the variable %s which is not in %s on the context %s" % (
+                            datasource.expression, att, allDatapointsByVarName.keys(), context))
 
         config['obj_attrs'] = attrs
         config['targetDatapoints'] = targetDataPoints
