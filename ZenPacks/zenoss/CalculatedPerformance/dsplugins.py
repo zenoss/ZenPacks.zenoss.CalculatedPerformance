@@ -106,8 +106,10 @@ class AggregatingDataSourcePlugin(object):
             targetInfos.append(targetInfo(member))
 
         targetArgValues = []
+        rrdtype = "GAUGE"
         for datapoint in datasource.datapoints():
             if isinstance(datapoint, AggregatingDataPoint):
+                rrdtype = datapoint.rrdtype
                 for att in getVarNames(datapoint.arguments.strip()):
                     targetArgValues.append(dotTraverse(context, att))
             else:
@@ -119,7 +121,7 @@ class AggregatingDataSourcePlugin(object):
         zDebug = context.getZ('zDatasourceDebugLogging')
         return dict(
             targetDatapoints = [(datasource.targetDataSource, datasource.targetDataPoint,
-                                 datasource.targetRRA or 'AVERAGE')],
+                                 datasource.targetRRA or 'AVERAGE', rrdtype)],
             targetArgValues=[tuple(targetArgValues)],
             targets=targetInfos,
             debug=datasource.debug or zDebug
@@ -132,12 +134,13 @@ class AggregatingDataSourcePlugin(object):
         debug = datasource.params.get('debug', None)
 
         #Aggregate datasources only have one target datapoint config
-        targetDatasource, targetDatapoint, targetRRA = datasource.params['targetDatapoints'][0]
+        targetDatasource, targetDatapoint, targetRRA, rrdtype = datasource.params['targetDatapoints'][0]
 
         targetValues, errors = yield self.getLastValues(rrdcache,
                                                 targetDatasource,
                                                 targetDatapoint,
                                                 targetRRA,
+                                                rrdtype,
                                                 datasource.cycletime,
                                                 datasource.params['targets'])
 
@@ -198,11 +201,11 @@ class AggregatingDataSourcePlugin(object):
         })
 
     @inlineCallbacks
-    def getLastValues(self, rrdcache, datasource, datapoint, rra='AVERAGE', cycleTime=300, targets=()):
+    def getLastValues(self, rrdcache, datasource, datapoint, rra='AVERAGE', rrdtype="GAUGE", cycleTime=300, targets=()):
         values = {}
         errors = []
         for chunk in grouper(RRD_READ_CHUNKS, targets):
-            chunkDict, chunkErrors = yield rrdcache.getLastValues(datasource, datapoint, rra, cycleTime*5, chunk)
+            chunkDict, chunkErrors = yield rrdcache.getLastValues(datasource, datapoint, rra, rrdtype, cycleTime*5, chunk)
             values.update(chunkDict)
             errors.extend(chunkErrors)
         returnValue((values, errors))
@@ -248,7 +251,7 @@ class CalculatedDataSourcePlugin(object):
 
             if att in allDatapointsByVarName:
                 datapoint = allDatapointsByVarName[att]
-                targetDataPoints.append((datapoint.datasource().id, datapoint.id, 'AVERAGE'))
+                targetDataPoints.append((datapoint.datasource().id, datapoint.id, 'AVERAGE', datapoint.rrdtype))
             else:
                 value = dotTraverse(context, att)
                 if not CalculatedDataSourcePlugin.isPicklable(value):
@@ -275,16 +278,16 @@ class CalculatedDataSourcePlugin(object):
         if expression:
             # We will populate this with perf metrics and pass to eval()
             devdict = createDeviceDictionary(datasource.params['obj_attrs'])
-
             rrdValues = {}
             datapointDict = {}
             gotAllRRDValues = True
 
-            for targetDatasource, targetDatapoint, targetRRA in datasource.params['targetDatapoints']:
+            for targetDatasource, targetDatapoint, targetRRA, rrdtype in datasource.params['targetDatapoints']:
                 try:
                     value = yield rrdcache.getLastValue(targetDatasource,
                                                         targetDatapoint,
                                                         targetRRA,
+                                                        rrdtype,
                                                         datasource.cycletime*5,
                                                         datasource.params['targets'][0])
 
@@ -298,7 +301,7 @@ class CalculatedDataSourcePlugin(object):
                     })
                     logMethod = log.error if debug else log.debug
                     logMethod(msg + "\n%s", ex)
-
+                    log.exception(ex)
                     continue
 
                 # Datapoints can be specified in the following ways:
