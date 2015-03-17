@@ -21,7 +21,7 @@ class ReadThroughCache(object):
     def _getKey(self, datasource, datapoint, rra, targetValue):
         return '%s/%s_%s_%s' % (targetValue, datasource, datapoint, rra)
 
-    def getLastValues(self, datasource, datapoint, rra='AVERAGE', ago=300, targets=()):
+    def getLastValues(self, datasource, datapoint, rra='AVERAGE', rrdtype="GAUGE", ago=300, targets=()):
         """
         Get the last value from the specified rrd for each target.
 
@@ -47,14 +47,14 @@ class ReadThroughCache(object):
         errors = []
         for targetConfig in targets:
             try:
-                valueMap[targetConfig['uuid']] = self.getLastValue(datasource, datapoint, rra, ago, targetConfig)
+                valueMap[targetConfig['uuid']] = self.getLastValue(datasource, datapoint, rra, rrdtype, ago, targetConfig)
             except StandardError as ex:
                 msg = "Failure reading configured datapoint %s_%s on target %s" % \
                       (datasource, datapoint, getTargetId(targetConfig))
                 errors.append((ex, msg))
         return {k: v for k, v in valueMap.items() if v is not None}, errors
 
-    def getLastValue(self, datasource, datapoint, rra='AVERAGE', ago=300, targetConfig={}):
+    def getLastValue(self, datasource, datapoint, rra='AVERAGE', rrdtype="GAUGE", ago=300, targetConfig={}):
         """
 
         @param datasource: target datasource id
@@ -83,7 +83,7 @@ class ReadThroughCache(object):
         if cachekey in self._cache:
             log.debug("Using cached value for %s: %s", cachekey, self._cache[cachekey])
             return self._cache[cachekey]
-        readValue = self._readLastValue(targetValue, datasource, datapoint, rra, ago, targetConfig)
+        readValue = self._readLastValue(targetValue, datasource, datapoint, rra, rrdtype, ago, targetConfig)
 
         if readValue is not None:
             self._cache[cachekey] = readValue
@@ -114,7 +114,7 @@ class RRDReadThroughCache(ReadThroughCache):
         from Products.ZenModel.PerformanceConf import performancePath
         self._performancePath = performancePath
 
-    def _readLastValue(self, targetPath, datasource, datapoint, rra='AVERAGE', ago=300, targetConfig={}):
+    def _readLastValue(self, targetPath, datasource, datapoint, rra='AVERAGE', rrdtype="GAUGE", ago=300, targetConfig={}):
         realPath = self._performancePath(targetPath) + '/%s_%s.rrd' % (datasource, datapoint)
         result = getUtility(IDataService).readRRD(realPath, rra, 'now-%ds' % ago, 'now')
 
@@ -147,7 +147,7 @@ class MetricServiceReadThroughCache(ReadThroughCache):
         }
         self._cookies = cookielib.CookieJar()
 
-    def _readLastValue(self, uuid, datasource, datapoint, rra='AVERAGE', ago=300, targetConfig={}):
+    def _readLastValue(self, uuid, datasource, datapoint, rra='AVERAGE', rrdtype="GAUGE", ago=300, targetConfig={}):
         from Products.ZenUtils.metrics import ensure_prefix
         metrics = []
         if targetConfig.get('device'):
@@ -157,13 +157,14 @@ class MetricServiceReadThroughCache(ReadThroughCache):
         if not deviceId:
             return None
         name = ensure_prefix(deviceId, datasource + "_" + datapoint)
+        rate = rrdtype.lower() in ('counter', 'derive')
         metrics.append(dict(
             metric=name,
             aggregator=self._aggMapping.get(rra.lower(), rra.lower()),
             rpn='',
+            rate=rate,
             format='%.2lf',
             tags=dict(contextUUID=[uuid]),
-            rate=False,
             name='%s_%s' % (uuid, datapoint)
         ))
         end = datetime.today().strftime(self._datefmt)
