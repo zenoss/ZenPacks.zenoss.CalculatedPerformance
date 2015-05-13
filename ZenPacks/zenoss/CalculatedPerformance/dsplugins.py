@@ -450,6 +450,10 @@ class DerivedDataSourceProxyingPlugin(PythonDataSourcePlugin):
 
         datasourcesByKey = {dsKey(ds): ds for ds in config.datasources}
         datasourceDependencies = {dsKey(ds): dsTargetKeys(ds) for ds in config.datasources}
+        # if we are able prefetch all the metrics that we can
+        if hasattr(self.rrdcache, "batchFetchMetrics"):
+            datasources = [datasourcesByKey.get(ds) for ds in toposort(datasourceDependencies) if datasourcesByKey.get(ds)]
+            self.rrdcache.batchFetchMetrics(datasources)
 
         for dskey in toposort(datasourceDependencies):
             datasource = datasourcesByKey.get(dskey, None)

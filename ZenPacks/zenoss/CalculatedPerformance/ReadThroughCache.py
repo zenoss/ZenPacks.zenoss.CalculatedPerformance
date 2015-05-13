@@ -127,7 +127,7 @@ class RRDReadThroughCache(ReadThroughCache):
                 return nonNans[-1][0]
 
 class MetricServiceReadThroughCache(ReadThroughCache):
-    
+
     _requests = None
 
     def __init__(self):
@@ -181,6 +181,58 @@ class MetricServiceReadThroughCache(ReadThroughCache):
             results = response.json()['results']
             if results and results[0].get('datapoints'):
                 return results[0]['datapoints'][-1]['value']
+
+    def batchFetchMetrics(self, datasources):
+        log.debug("Batch Fetching metrics from central query")
+        from Products.ZenUtils.metrics import ensure_prefix
+        metrics = []
+        for datasource in datasources:
+            for dsname, datapoint, rra, rrdtype in datasource.params['targetDatapoints']:
+                if not len(datasource.params['targets']):
+                    # we don't have a specific context so don't try to prefetch the
+                    # metric
+                    continue
+                targetConfig = datasource.params['targets'][0]
+                targetValue = targetConfig.get(self._targetKey, None)
+                uuid = targetValue
+                cachekey = self._getKey(dsname, datapoint, rra, targetValue)
+                if not targetConfig.get('device'):
+                    deviceId = targetConfig.get('id')
+                else:
+                    deviceId = targetConfig['device']['id']
+                name = ensure_prefix(deviceId, dsname + "_" + datapoint)
+                rate = rrdtype.lower() in ('counter', 'derive')
+                metrics.append(dict(
+                    metric=name,
+                    aggregator=self._aggMapping.get(rra.lower(), rra.lower()),
+                    rpn='',
+                    rate=rate,
+                    format='%.2lf',
+                    tags=dict(contextUUID=[uuid]),
+                    name='%s' % cachekey
+                ))
+        if not len(metrics):
+            return
+        end = datetime.today().strftime(self._datefmt)
+        start = (datetime.today() - timedelta(seconds=600)).strftime(self._datefmt)
+        request = dict(
+            returnset='LAST',
+            start=start,
+            end=end,
+            metrics=metrics
+        )
+        log.debug("About to request %s metrics from Central Query ", len(metrics))
+        response = self._requests.post(self._metric_url, json.dumps(request),
+                headers=self._headers)
+        if response.status_code > 199 and response.status_code < 300:
+            results = response.json()['results']
+            for row in results:
+                if row.get('datapoints'):
+                    self._cache[row['metric']] = row.get('datapoints')[0]['value']
+                else:
+                    # put an entry so we don't fetch it again
+                    self._cache[row['metric']] = None
+
 
 def getReadThroughCache():
     try:
