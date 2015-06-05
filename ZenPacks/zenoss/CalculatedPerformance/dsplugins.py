@@ -455,6 +455,8 @@ class DerivedDataSourceProxyingPlugin(PythonDataSourcePlugin):
             datasources = [datasourcesByKey.get(ds) for ds in toposort(datasourceDependencies) if datasourcesByKey.get(ds)]
             self.rrdcache.batchFetchMetrics(datasources)
 
+        from collections import defaultdict
+        sourcetypes = defaultdict(int)
         for dskey in toposort(datasourceDependencies):
             datasource = datasourcesByKey.get(dskey, None)
             if datasource is None or \
@@ -492,6 +494,11 @@ class DerivedDataSourceProxyingPlugin(PythonDataSourcePlugin):
                 collectedMaps.extend(dsResult.get('maps', []))
                 collectedValues.setdefault(datasource.component, {})
                 collectedValues[datasource.component].update(resultValues)
+                dsclassname = datasource.params['datasourceClassName']
+                sourcetypes[dsclassname] += 1
+
+        for dsclassname in sourcetypes:
+            log.warn("  Collected number of dsclassname '%s': %s", dsclassname, sourcetypes[dsclassname])
 
         returnValue({
             'events': collectedEvents,
