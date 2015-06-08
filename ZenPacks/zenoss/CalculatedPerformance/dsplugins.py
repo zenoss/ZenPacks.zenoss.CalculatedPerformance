@@ -156,8 +156,8 @@ class AggregatingDataSourcePlugin(object):
                     'eventKey': 'aggregatingDataSourcePlugin_novalues',
                     'severity': ZenEventClasses.Info if debug else ZenEventClasses.Debug,
                 })
-                logMethod = log.info if debug else log.debug
-                logMethod(msg)
+                #logMethod = log.info if debug else log.debug
+                #logMethod(msg)
 
             returnValue({
                 'events': collectedEvents,
