@@ -455,6 +455,7 @@ class DerivedDataSourceProxyingPlugin(PythonDataSourcePlugin):
             datasources = [datasourcesByKey.get(ds) for ds in toposort(datasourceDependencies) if datasourcesByKey.get(ds)]
             self.rrdcache.batchFetchMetrics(datasources)
 
+        startCollectTime = time.time()
         from collections import defaultdict
         sourcetypes = defaultdict(int)
         for dskey in toposort(datasourceDependencies):
@@ -497,8 +498,8 @@ class DerivedDataSourceProxyingPlugin(PythonDataSourcePlugin):
                 dsclassname = datasource.params['datasourceClassName']
                 sourcetypes[dsclassname] += 1
 
-        for dsclassname in sourcetypes:
-            log.warn("  Collected number of dsclassname '%s': %s", dsclassname, sourcetypes[dsclassname])
+        endCollectTime = time.time()
+        log.warn("  Took %.1f seconds to collect datasources: %s", endCollectTime - startCollectTime, sourcetypes)
 
         returnValue({
             'events': collectedEvents,

@@ -5,6 +5,7 @@
 # License.zenoss under the directory where your Zenoss product is installed.
 #
 from datetime import datetime, timedelta
+import time
 import base64
 import json
 import logging
@@ -226,10 +227,11 @@ class MetricServiceReadThroughCache(ReadThroughCache):
             metrics=metrics
         )
         log.warn("About to request %s metrics from Central Query ", len(metrics))
-        for dsclassname in sourcetypes:
-            log.warn("  Batch fetched number of dsclassname '%s': %s", dsclassname, sourcetypes[dsclassname])
+        startPostTime = time.time()
         response = self._requests.post(self._metric_url, json.dumps(request),
                 headers=self._headers)
+        endPostTime = time.time()
+        log.warn("  Took %.1f seconds to batch fetch metrics: %s", endPostTime - startPostTime, sourcetypes)
         if response.status_code > 199 and response.status_code < 300:
             results = response.json()['results']
             for row in results:
