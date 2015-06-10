@@ -176,6 +176,7 @@ class MetricServiceReadThroughCache(ReadThroughCache):
             end=end,
             metrics=metrics
         )
+        log.info("WE ARE NOT USING A BATCH REQUEST!! %s ", request)
         response = self._requests.post(self._metric_url, json.dumps(request),
                 headers=self._headers)
         if response.status_code > 199 and response.status_code < 300:
