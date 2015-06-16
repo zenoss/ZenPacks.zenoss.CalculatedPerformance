@@ -230,7 +230,7 @@ class MetricServiceReadThroughCache(ReadThroughCache):
         timeLogFn = log.debug
         if timeTaken > 60.0 :
             timeLogFn = log.warn
-        timeLogFn("  Took %.1f seconds total to batch fetch metrics in chunks: %s", timeTaken, sourcetypes)
+        timeLogFn("  Took %.1f seconds total to batch fetch metrics in chunks of %s: %s", timeTaken, chunkSize, sourcetypes)
 
     def cacheSome(self, end, start, metrics):
         request = dict(
