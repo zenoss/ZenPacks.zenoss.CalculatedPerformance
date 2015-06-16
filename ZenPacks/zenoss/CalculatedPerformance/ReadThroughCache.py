@@ -5,6 +5,7 @@
 # License.zenoss under the directory where your Zenoss product is installed.
 #
 from datetime import datetime, timedelta
+import time
 import base64
 import json
 import logging
@@ -185,6 +186,8 @@ class MetricServiceReadThroughCache(ReadThroughCache):
     def batchFetchMetrics(self, datasources):
         log.debug("Batch Fetching metrics from central query")
         from Products.ZenUtils.metrics import ensure_prefix
+        from collections import defaultdict
+        sourcetypes = defaultdict(int)
         metrics = []
         for datasource in datasources:
             for dsname, datapoint, rra, rrdtype in datasource.params['targetDatapoints']:
@@ -202,6 +205,8 @@ class MetricServiceReadThroughCache(ReadThroughCache):
                     deviceId = targetConfig['device']['id']
                 name = ensure_prefix(deviceId, dsname + "_" + datapoint)
                 rate = rrdtype.lower() in ('counter', 'derive')
+                dsclassname = datasource.params['datasourceClassName']
+                sourcetypes[dsclassname] += 1
                 metrics.append(dict(
                     metric=name,
                     aggregator=self._aggMapping.get(rra.lower(), rra.lower()),
@@ -215,13 +220,25 @@ class MetricServiceReadThroughCache(ReadThroughCache):
             return
         end = datetime.today().strftime(self._datefmt)
         start = (datetime.today() - timedelta(seconds=600)).strftime(self._datefmt)
+        chunkSize = 100
+        log.debug("About to request %s metrics from Central Query, in chunks of %s", len(metrics), chunkSize)
+        startPostTime = time.time()
+        for x in range(0, len(metrics)/chunkSize + 1):
+            self.cacheSome(end, start, metrics[x*chunkSize:x*chunkSize+chunkSize])
+        endPostTime = time.time()
+        timeTaken = endPostTime - startPostTime
+        timeLogFn = log.debug
+        if timeTaken > 60.0 :
+            timeLogFn = log.warn
+        timeLogFn("  Took %.1f seconds total to batch fetch metrics in chunks of %s: %s", timeTaken, chunkSize, sourcetypes)
+
+    def cacheSome(self, end, start, metrics):
         request = dict(
             returnset='LAST',
             start=start,
             end=end,
             metrics=metrics
         )
-        log.debug("About to request %s metrics from Central Query ", len(metrics))
         response = self._requests.post(self._metric_url, json.dumps(request),
                 headers=self._headers)
         if response.status_code > 199 and response.status_code < 300:
@@ -232,6 +249,8 @@ class MetricServiceReadThroughCache(ReadThroughCache):
                 else:
                     # put an entry so we don't fetch it again
                     self._cache[row['metric']] = None
+        else:
+            log.warn("  response.status_code was %s", response.status_code)
 
 
 def getReadThroughCache():
