@@ -176,7 +176,6 @@ class MetricServiceReadThroughCache(ReadThroughCache):
             end=end,
             metrics=metrics
         )
-        log.info("WE ARE NOT USING A BATCH REQUEST!! %s ", request)
         response = self._requests.post(self._metric_url, json.dumps(request),
                 headers=self._headers)
         if response.status_code > 199 and response.status_code < 300:
@@ -185,7 +184,7 @@ class MetricServiceReadThroughCache(ReadThroughCache):
                 return results[0]['datapoints'][-1]['value']
 
     def batchFetchMetrics(self, datasources):
-        log.warn("Batch Fetching metrics from central query")
+        log.debug("Batch Fetching metrics from central query")
         from Products.ZenUtils.metrics import ensure_prefix
         from collections import defaultdict
         sourcetypes = defaultdict(int)
@@ -221,18 +220,27 @@ class MetricServiceReadThroughCache(ReadThroughCache):
             return
         end = datetime.today().strftime(self._datefmt)
         start = (datetime.today() - timedelta(seconds=600)).strftime(self._datefmt)
+        chunkSize = 100
+        log.debug("About to request %s metrics from Central Query, in chunks of %s", len(metrics), chunkSize)
+        startPostTime = time.time()
+        for x in range(0, len(metrics)/chunkSize + 1):
+            self.cacheSome(end, start, metrics[x*chunkSize:x*chunkSize+chunkSize])
+        endPostTime = time.time()
+        timeTaken = endPostTime - startPostTime
+        timeLogFn = log.debug
+        if timeTaken > 60.0 :
+            timeLogFn = log.warn
+        timeLogFn("  Took %.1f seconds total to batch fetch metrics in chunks: %s", timeTaken, sourcetypes)
+
+    def cacheSome(self, end, start, metrics):
         request = dict(
             returnset='LAST',
             start=start,
             end=end,
             metrics=metrics
         )
-        log.warn("About to request %s metrics from Central Query ", len(metrics))
-        startPostTime = time.time()
         response = self._requests.post(self._metric_url, json.dumps(request),
                 headers=self._headers)
-        endPostTime = time.time()
-        log.warn("  Took %.1f seconds to batch fetch metrics: %s", endPostTime - startPostTime, sourcetypes)
         if response.status_code > 199 and response.status_code < 300:
             results = response.json()['results']
             for row in results:
@@ -241,6 +249,8 @@ class MetricServiceReadThroughCache(ReadThroughCache):
                 else:
                     # put an entry so we don't fetch it again
                     self._cache[row['metric']] = None
+        else:
+            log.warn("  response.status_code was %s", response.status_code)
 
 
 def getReadThroughCache():

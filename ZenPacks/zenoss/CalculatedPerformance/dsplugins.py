@@ -156,8 +156,8 @@ class AggregatingDataSourcePlugin(object):
                     'eventKey': 'aggregatingDataSourcePlugin_novalues',
                     'severity': ZenEventClasses.Info if debug else ZenEventClasses.Debug,
                 })
-                #logMethod = log.info if debug else log.debug
-                #logMethod(msg)
+                logMethod = log.info if debug else log.debug
+                logMethod(msg)
 
             returnValue({
                 'events': collectedEvents,
@@ -499,7 +499,11 @@ class DerivedDataSourceProxyingPlugin(PythonDataSourcePlugin):
                 sourcetypes[dsclassname] += 1
 
         endCollectTime = time.time()
-        log.warn("  Took %.1f seconds to collect datasources: %s", endCollectTime - startCollectTime, sourcetypes)
+        timeTaken = endCollectTime - startCollectTime
+        timeLogFn = log.debug
+        if timeTaken > 60.0 :
+            timeLogFn = log.warn
+        timeLogFn("  Took %.1f seconds to collect datasources: %s", timeTaken, sourcetypes)
 
         returnValue({
             'events': collectedEvents,
