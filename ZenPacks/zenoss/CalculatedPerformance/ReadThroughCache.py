@@ -9,6 +9,7 @@ import time
 import base64
 import json
 import logging
+from twisted.web.client import getPage
 from Products.ZenCollector.interfaces import IDataService
 from Products.ZenUtils.GlobalConfig import getGlobalConfiguration
 from ZenPacks.zenoss.CalculatedPerformance.utils import getTargetId
@@ -239,18 +240,21 @@ class MetricServiceReadThroughCache(ReadThroughCache):
             end=end,
             metrics=metrics
         )
-        response = self._requests.post(self._metric_url, json.dumps(request),
-                headers=self._headers)
-        if response.status_code > 199 and response.status_code < 300:
-            results = response.json()['results']
-            for row in results:
-                if row.get('datapoints'):
-                    self._cache[row['metric']] = row.get('datapoints')[0]['value']
-                else:
-                    # put an entry so we don't fetch it again
-                    self._cache[row['metric']] = None
-        else:
-            log.warn("  response.status_code was %s", response.status_code)
+        d = getPage(self._metric_url, headers=self._headers, postdata=json.dumps(request), method='POST')
+        d.addCallback(self._fetchSuccess)
+        d.addErrback(self._fetchFailure)
+
+    def _fetchSuccess(self, response):
+        results = json.loads(response)['results']
+        for row in results:
+            if row.get('datapoints'):
+                self._cache[row['metric']] = row.get('datapoints')[0]['value']
+            else:
+                # put an entry so we don't fetch it again
+                self._cache[row['metric']] = None
+
+    def _fetchFailure(self):
+        log.warn("failed to retrieve a chunk of metrics for cache")
 
 
 def getReadThroughCache():
