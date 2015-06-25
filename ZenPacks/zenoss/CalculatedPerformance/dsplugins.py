@@ -453,7 +453,7 @@ class DerivedDataSourceProxyingPlugin(PythonDataSourcePlugin):
         # if we are able prefetch all the metrics that we can
         if hasattr(self.rrdcache, "batchFetchMetrics"):
             datasources = [datasourcesByKey.get(ds) for ds in toposort(datasourceDependencies) if datasourcesByKey.get(ds)]
-            self.rrdcache.batchFetchMetrics(datasources)
+            yield self.rrdcache.batchFetchMetrics(datasources)
 
         startCollectTime = time.time()
         from collections import defaultdict
@@ -464,6 +464,7 @@ class DerivedDataSourceProxyingPlugin(PythonDataSourcePlugin):
                'datasourceClassName' not in datasource.params or \
                datasource.params['datasourceClassName'] not in DerivedProxyMap:
                 #Not our datasource, it's a dependency from elsewhere
+                #log.warn("not using ds: %s %s %s", dskey, datasource, datasource.params.__dict__)
                 continue
 
             collectionTime = time.time()
