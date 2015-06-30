@@ -208,6 +208,7 @@ class MetricServiceReadThroughCache(ReadThroughCache):
                         tags=dict(contextUUID=[uuid]),
                         name='%s' % cachekey
                     )
+                    log.debug("cachekey: %s %s", cachekey, _tmp)
                     metrics[cachekey] = _tmp
         if not len(metrics):
             return
@@ -221,7 +222,16 @@ class MetricServiceReadThroughCache(ReadThroughCache):
         log.debug("About to request %s metrics from Central Query, in chunks of %s", len(metrics), chunkSize)
         startPostTime = time.time()
         for x in range(0, len(metrics)/chunkSize + 1):
-            yield self.cacheSome(end, start, metrics[x*chunkSize:x*chunkSize+chunkSize])
+            ms = metrics[x*chunkSize:x*chunkSize+chunkSize]
+            if not len(ms):
+                log.debug("skipping chunk at x %s", x)
+                continue
+            try:
+                yield self.cacheSome(end, start, ms)
+            except Exception as ex:
+                msg = "Failure caching metrics: %s" % (ms)
+                log.error((ex, msg))
+
         endPostTime = time.time()
         timeTaken = endPostTime - startPostTime
         timeLogFn = log.debug
@@ -230,6 +240,7 @@ class MetricServiceReadThroughCache(ReadThroughCache):
         timeLogFn("  Took %.1f seconds total to batch fetch metrics in chunks of %s: %s", timeTaken, chunkSize, sourcetypes)
 
     def cacheSome(self, end, start, metrics):
+        log.debug("metrics: %s", metrics)
         request = dict(
             returnset='LAST',
             start=start,
