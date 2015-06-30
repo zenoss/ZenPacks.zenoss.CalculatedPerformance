@@ -110,12 +110,16 @@ class ReadThroughCache(object):
         else:
             self._cache = {}
 
-    def put(self, datasource, datapoint, rra, targetValue, value):
+    def put(self, datasource, datapoint, rra, targetPath, targetID, value):
         """
         Place a value in the rrd cache
         """
-        rrdcachekey = self._getKey(datasource, datapoint, rra, targetValue)
+        val = targetPath
+        if self._targetKey=="uuid":
+            val = targetID
+        rrdcachekey = self._getKey(datasource, datapoint, rra, val)
         self._cache[rrdcachekey] = value
+
 
 class RRDReadThroughCache(ReadThroughCache):
     def __init__(self):

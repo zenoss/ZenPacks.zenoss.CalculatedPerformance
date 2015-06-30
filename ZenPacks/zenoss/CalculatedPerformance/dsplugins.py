@@ -485,11 +485,12 @@ class DerivedDataSourceProxyingPlugin(PythonDataSourcePlugin):
                                           '_'.join((datasource.datasource, p.id)) in resultValues)
 
                     for datapoint in collectedPoints:
-                        myPath = datapoint.rrdPath.rsplit('/', 1)[0]
+                        rrdPath = datapoint.rrdPath.rsplit('/', 1)[0]
+                        contextUUID = datapoint.metadata["contextUUID"]
                         value = (resultValues.get(datapoint.id, None) or
                                  resultValues.get('_'.join((datasource.datasource, datapoint.id))))[0]
                         for rra in ('AVERAGE', 'MIN', 'MAX', 'LAST'):
-                            self.rrdcache.put(datasource.datasource, datapoint.id, rra, myPath, value)
+                            self.rrdcache.put(datasource.datasource, datapoint.id, rra, rrdPath, contextUUID, value)
 
                 #incorporate results returned from the proxied method
                 collectedEvents.extend(dsResult.get('events', []))
