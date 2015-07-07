@@ -184,12 +184,30 @@ class MetricServiceReadThroughCache(ReadThroughCache):
         from Products.ZenUtils.metrics import ensure_prefix
         from collections import defaultdict
         sourcetypes = defaultdict(int)
+
+        dsPoints=set()
+
+        for ds in datasources:
+            for dp in ds.points:
+                dsdpID = "%s/%s" % (dp.metadata["contextUUID"],dp.dpName)
+                if dsdpID in dsPoints:
+                    log.warn("ALREADY FOUND IN DS POINTS %s", dsdpID)
+                else:
+                    dsPoints.add(dsdpID)
         metrics = {}
         for datasource in datasources:
             for dsname, datapoint, rra, rrdtype in datasource.params['targetDatapoints']:
                 for targetConfig in datasource.params['targets']:
                     targetValue = targetConfig.get(self._targetKey, None)
                     uuid = targetValue
+                    #filter out target datapoints that match a datasource datapoint
+                    #Target datapoints are what a datasource is made up of, if the 
+                    #target point is also a datasource datapoint that means we don't
+                    #have to query for it since it will be calculated
+                    filterKey = "%s/%s_%s" % (targetConfig.get("uuid", None) , dsname, datapoint)
+                    if filterKey in dsPoints:
+                        log.info("skipping target datapoint %s", filterKey)
+                        continue
                     cachekey = self._getKey(dsname, datapoint, rra, targetValue)
                     if not targetConfig.get('device'):
                         deviceId = targetConfig.get('id')
@@ -212,9 +230,10 @@ class MetricServiceReadThroughCache(ReadThroughCache):
                     metrics[cachekey] = _tmp
         if not len(metrics):
             return
+
         end = datetime.today().strftime(self._datefmt)
         start = (datetime.today() - timedelta(seconds=600)).strftime(self._datefmt)
-        chunkSize = 100
+        chunkSize = 1000
         yield self.fetchChunks(chunkSize, end, start, metrics.values(), sourcetypes)
 
     @inlineCallbacks
