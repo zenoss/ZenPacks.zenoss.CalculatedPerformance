@@ -16,8 +16,7 @@ from twisted.internet import reactor
 from twisted.web.client import Agent, CookieAgent, FileBodyProducer, readBody
 from twisted.web.http_headers import Headers
 
-from twisted.web.client import getPage
-from twisted.internet.defer import inlineCallbacks, returnValue
+from twisted.internet.defer import inlineCallbacks
 from Products.ZenCollector.interfaces import IDataService
 from Products.ZenUtils.GlobalConfig import getGlobalConfiguration
 from ZenPacks.zenoss.CalculatedPerformance.utils import getTargetId
@@ -25,8 +24,8 @@ from zope.component import getUtility
 
 log = logging.getLogger('zen.ReadThroughCache')
 
-class ReadThroughCache(object):
 
+class ReadThroughCache(object):
     def _getKey(self, datasource, datapoint, rra, targetValue):
         return '%s/%s_%s_%s' % (targetValue, datasource, datapoint, rra)
 
@@ -56,7 +55,8 @@ class ReadThroughCache(object):
         errors = []
         for targetConfig in targets:
             try:
-                valueMap[targetConfig['uuid']] = self.getLastValue(datasource, datapoint, rra, rrdtype, ago, targetConfig)
+                valueMap[targetConfig['uuid']] = self.getLastValue(datasource, datapoint, rra, rrdtype, ago,
+                                                                   targetConfig)
             except StandardError as ex:
                 msg = "Failure reading configured datapoint %s_%s on target %s" % \
                       (datasource, datapoint, getTargetId(targetConfig))
@@ -88,7 +88,7 @@ class ReadThroughCache(object):
             return None
 
         cachekey = self._getKey(datasource, datapoint, rra, targetValue)
-        #fetch from the cache if able
+        # fetch from the cache if able
         if cachekey in self._cache:
             log.debug("Using cached value for %s: %s", cachekey, self._cache[cachekey])
             return self._cache[cachekey]
@@ -115,7 +115,7 @@ class ReadThroughCache(object):
         Place a value in the rrd cache
         """
         val = targetPath
-        if self._targetKey=="uuid":
+        if self._targetKey == "uuid":
             val = targetID
         rrdcachekey = self._getKey(datasource, datapoint, rra, val)
         self._cache[rrdcachekey] = value
@@ -126,9 +126,11 @@ class RRDReadThroughCache(ReadThroughCache):
         self._cache = {}
         self._targetKey = 'rrdpath'
         from Products.ZenModel.PerformanceConf import performancePath
+
         self._performancePath = performancePath
 
-    def _readLastValue(self, targetPath, datasource, datapoint, rra='AVERAGE', rrdtype="GAUGE", ago=300, targetConfig={}):
+    def _readLastValue(self, targetPath, datasource, datapoint, rra='AVERAGE', rrdtype="GAUGE", ago=300,
+                       targetConfig={}):
         realPath = self._performancePath(targetPath) + '/%s_%s.rrd' % (datasource, datapoint)
         result = getUtility(IDataService).readRRD(realPath, rra, 'now-%ds' % ago, 'now')
 
@@ -141,8 +143,8 @@ class RRDReadThroughCache(ReadThroughCache):
             if nonNans:
                 return nonNans[-1][0]
 
-class MetricServiceReadThroughCache(ReadThroughCache):
 
+class MetricServiceReadThroughCache(ReadThroughCache):
     # TODO: refactor this to use Products/ZenUtils/MetricServiceRequest.py
 
     # use a shared cookie jar so all Metric requests can share the same session
@@ -150,6 +152,7 @@ class MetricServiceReadThroughCache(ReadThroughCache):
 
     def __init__(self):
         from Products.Zuul.facades.metricfacade import DATE_FORMAT, METRIC_URL_PATH, AGGREGATION_MAPPING
+
         self._datefmt = DATE_FORMAT
         self._aggMapping = AGGREGATION_MAPPING
         self._cache = {}
@@ -157,6 +160,7 @@ class MetricServiceReadThroughCache(ReadThroughCache):
         urlstart = getGlobalConfiguration().get('metric-url', 'http://localhost:8080')
         self._metric_url = '%s/%s' % (urlstart, METRIC_URL_PATH)
         from Products.Zuul.interfaces import IAuthorizationTool
+
         creds = IAuthorizationTool(None).extractGlobalConfCredentials()
         auth = base64.b64encode('{login}:{password}'.format(**creds))
         self.agent = CookieAgent(Agent(reactor, connectTimeout=30), self.cookieJar)
@@ -168,6 +172,7 @@ class MetricServiceReadThroughCache(ReadThroughCache):
 
     def _readLastValue(self, uuid, datasource, datapoint, rra='AVERAGE', rrdtype="GAUGE", ago=300, targetConfig={}):
         from Products.ZenUtils.metrics import ensure_prefix
+
         metrics = []
         if targetConfig.get('device'):
             deviceId = targetConfig['device']['id']
@@ -183,15 +188,16 @@ class MetricServiceReadThroughCache(ReadThroughCache):
         log.debug("Batch Fetching metrics from central query")
         from Products.ZenUtils.metrics import ensure_prefix
         from collections import defaultdict
+
         sourcetypes = defaultdict(int)
 
-        dsPoints=set()
+        dsPoints = set()
 
         for ds in datasources:
             for dp in ds.points:
-                dsdpID = "%s/%s" % (dp.metadata["contextUUID"],dp.dpName)
+                dsdpID = "%s/%s" % (dp.metadata["contextUUID"], dp.dpName)
                 if dsdpID in dsPoints:
-                    log.warn("ALREADY FOUND IN DS POINTS %s", dsdpID)
+                    log.debug("already found in ds points %s", dsdpID)
                 else:
                     dsPoints.add(dsdpID)
         metrics = {}
@@ -200,13 +206,13 @@ class MetricServiceReadThroughCache(ReadThroughCache):
                 for targetConfig in datasource.params['targets']:
                     targetValue = targetConfig.get(self._targetKey, None)
                     uuid = targetValue
-                    #filter out target datapoints that match a datasource datapoint
-                    #Target datapoints are what a datasource is made up of, if the 
-                    #target point is also a datasource datapoint that means we don't
-                    #have to query for it since it will be calculated
-                    filterKey = "%s/%s_%s" % (targetConfig.get("uuid", None) , dsname, datapoint)
+                    # filter out target datapoints that match a datasource datapoint
+                    # Target datapoints are what a datasource is made up of, if the
+                    # target point is also a datasource datapoint that means we don't
+                    # have to query for it since it will be calculated
+                    filterKey = "%s/%s_%s" % (targetConfig.get("uuid", None), dsname, datapoint)
                     if filterKey in dsPoints:
-                        log.info("skipping target datapoint %s", filterKey)
+                        log.debug("skipping target datapoint %s, since also a datasource datapoint", filterKey)
                         continue
                     cachekey = self._getKey(dsname, datapoint, rra, targetValue)
                     if not targetConfig.get('device'):
@@ -240,8 +246,8 @@ class MetricServiceReadThroughCache(ReadThroughCache):
     def fetchChunks(self, chunkSize, end, start, metrics, sourcetypes):
         log.debug("About to request %s metrics from Central Query, in chunks of %s", len(metrics), chunkSize)
         startPostTime = time.time()
-        for x in range(0, len(metrics)/chunkSize + 1):
-            ms = metrics[x*chunkSize:x*chunkSize+chunkSize]
+        for x in range(0, len(metrics) / chunkSize + 1):
+            ms = metrics[x * chunkSize:x * chunkSize + chunkSize]
             if not len(ms):
                 log.debug("skipping chunk at x %s", x)
                 continue
@@ -254,9 +260,10 @@ class MetricServiceReadThroughCache(ReadThroughCache):
         endPostTime = time.time()
         timeTaken = endPostTime - startPostTime
         timeLogFn = log.debug
-        if timeTaken > 60.0 :
+        if timeTaken > 60.0:
             timeLogFn = log.warn
-        timeLogFn("  Took %.1f seconds total to batch fetch metrics in chunks of %s: %s", timeTaken, chunkSize, sourcetypes)
+        timeLogFn("  Took %.1f seconds total to batch fetch metrics in chunks of %s: %s", timeTaken, chunkSize,
+                  sourcetypes)
 
     def cacheSome(self, end, start, metrics):
         log.debug("metrics: %s", metrics)
@@ -296,9 +303,11 @@ class MetricServiceReadThroughCache(ReadThroughCache):
             d.addCallback(self.onError)
         return d
 
+
 def getReadThroughCache():
     try:
         import Products.Zuul.facades.metricfacade
+
         return MetricServiceReadThroughCache()
     except ImportError, e:
         # must be 4.x
