@@ -17,7 +17,7 @@ from Products.ZenUtils.Utils import monkeypatch
 from Products.Zuul import IInfo
 from ZenPacks.zenoss.CalculatedPerformance import operations
 from ZenPacks.zenoss.CalculatedPerformance.ReadThroughCache import getReadThroughCache
-from ZenPacks.zenoss.CalculatedPerformance.utils import toposort, getTargetId, grouper, dotTraverse, getVarNames, createDeviceDictionary
+from ZenPacks.zenoss.CalculatedPerformance.utils import toposort, grouper, dotTraverse, getVarNames, createDeviceDictionary, dsKey
 from ZenPacks.zenoss.PythonCollector.datasources.PythonDataSource \
     import PythonDataSourcePlugin
 from ZenPacks.zenoss.CalculatedPerformance.AggregatingDataPoint import AggregatingDataPoint
@@ -38,12 +38,6 @@ def getThresholdCacheKey(datasource, datapoint):
     return '%s_%s_%s_%s' % (datasource.device, datasource.component,
                             datasource.datasource, datapoint.id)
 
-def dsKey(ds):
-    return '%s_%s:%s' % (
-        ds.device,
-        ds.component or '',
-        ds.datasource
-    )
 
 def dsDescription(ds, devdict):
     return """expression: %s
@@ -61,19 +55,6 @@ datapoint: %s""" % (
         ds.datasource,
         ds.points[0].id
     )
-
-def dsTargetKeys(ds):
-    """
-    ds should have two params:
-        targets: list of targetInfo dicts from targetInfo(target) below.
-        targetDatapoints: list of tuples of (datasource_id, datapoint_id, RRA)
-    """
-    targetKeys = set()
-    for target in ds.params.get('targets', []):
-        targetElementId = getTargetId(target)
-        for targetDatapoint in ds.params.get('targetDatapoints', []):
-            targetKeys.add('%s:%s' % (targetElementId, targetDatapoint[0]))
-    return targetKeys
 
 
 def targetInfo(target):
@@ -449,20 +430,19 @@ class DerivedDataSourceProxyingPlugin(PythonDataSourcePlugin):
         collectedMaps = []
 
         datasourcesByKey = {dsKey(ds): ds for ds in config.datasources}
-        datasourceDependencies = {dsKey(ds): dsTargetKeys(ds) for ds in config.datasources}
         # if we are able prefetch all the metrics that we can
         if hasattr(self.rrdcache, "batchFetchMetrics"):
-            datasources = [datasourcesByKey.get(ds) for ds in toposort(datasourceDependencies) if datasourcesByKey.get(ds)]
+            datasources = [datasourcesByKey.get(ds) for ds in toposort(config.datasources, datasourcesByKey) if datasourcesByKey.get(ds)]
             yield self.rrdcache.batchFetchMetrics(datasources)
 
         startCollectTime = time.time()
         from collections import defaultdict
         sourcetypes = defaultdict(int)
-        for dskey in toposort(datasourceDependencies):
+        for dskey in toposort(config.datasources, datasourcesByKey):
             datasource = datasourcesByKey.get(dskey, None)
             if datasource is None or \
-               'datasourceClassName' not in datasource.params or \
-               datasource.params['datasourceClassName'] not in DerivedProxyMap:
+                    'datasourceClassName' not in datasource.params or \
+                    datasource.params['datasourceClassName'] not in DerivedProxyMap:
                 #Not our datasource, it's a dependency from elsewhere
                 #log.warn("not using ds: %s %s %s", dskey, datasource, datasource.params.__dict__)
                 continue
