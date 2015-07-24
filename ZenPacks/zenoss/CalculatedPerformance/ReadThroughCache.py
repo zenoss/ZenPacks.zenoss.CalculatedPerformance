@@ -92,7 +92,7 @@ class ReadThroughCache(object):
         if cachekey in self._cache:
             log.debug("Using cached value for %s: %s", cachekey, self._cache[cachekey])
             return self._cache[cachekey]
-        log.warn("Not Using cached value for %s", cachekey)
+        log.debug("Not Using cached value for %s", cachekey)
         readValue = self._readLastValue(targetValue, datasource, datapoint, rra, rrdtype, ago, targetConfig)
 
         if readValue is not None:
@@ -158,7 +158,7 @@ class MetricServiceReadThroughCache(ReadThroughCache):
         self._cache = {}
         self._targetKey = 'uuid'
         urlstart = getGlobalConfiguration().get('metric-url', 'http://localhost:8080')
-        self._metric_url = '%s/%s' % (urlstart, METRIC_URL_PATH)
+        self._metric_url = '%s/%s' % (urlstart, 'api/performance/query2')
         from Products.Zuul.interfaces import IAuthorizationTool
 
         creds = IAuthorizationTool(None).extractGlobalConfCredentials()
@@ -166,7 +166,7 @@ class MetricServiceReadThroughCache(ReadThroughCache):
         self.agent = CookieAgent(Agent(reactor, connectTimeout=30), self.cookieJar)
         self._headers2 = Headers({
             'Authorization': ['basic %s' % auth],
-            'content-type': ['application/json'],
+            'Content-Type': ['application/json'],
             'User-Agent': ['Zenoss: ZenPacks.zenoss.CalculatedPerformance'],
         })
 
@@ -181,7 +181,7 @@ class MetricServiceReadThroughCache(ReadThroughCache):
         if not deviceId:
             return None
         name = ensure_prefix(deviceId, datasource + "_" + datapoint)
-        log.warn("should not need to fetch metric: %s %s_%s", name, uuid, datapoint)
+        log.debug("should not need to fetch metric: %s %s_%s", name, uuid, datapoint)
 
     @inlineCallbacks
     def batchFetchMetrics(self, datasources):
@@ -200,7 +200,7 @@ class MetricServiceReadThroughCache(ReadThroughCache):
                     log.debug("already found in ds points %s", dsdpID)
                 else:
                     dsPoints.add(dsdpID)
-        metrics = {}
+        wildCardMetrics = {} #key is metricname, value is query with contextuuid as wildcard
         for datasource in datasources:
             for dsname, datapoint, rra, rrdtype in datasource.params['targetDatapoints']:
                 for targetConfig in datasource.params['targets']:
@@ -233,14 +233,20 @@ class MetricServiceReadThroughCache(ReadThroughCache):
                         name='%s' % cachekey
                     )
                     log.debug("cachekey: %s %s", cachekey, _tmp)
-                    metrics[cachekey] = _tmp
-        if not len(metrics):
+                    if name not in wildCardMetrics:
+                        wildCardMetrics[name]= dict(
+                                metric=name,
+                                #aggregator=self._aggMapping.get(rra.lower(), rra.lower()),
+                                rate=rate,
+                                tags=dict(contextUUID=["*"])
+                        )
+        if not len(wildCardMetrics):
             return
 
-        end = datetime.today().strftime(self._datefmt)
-        start = (datetime.today() - timedelta(seconds=600)).strftime(self._datefmt)
+        end = int(time.time())
+        start = end - 600
         chunkSize = 1000
-        yield self.fetchChunks(chunkSize, end, start, metrics.values(), sourcetypes)
+        yield self.fetchChunks(chunkSize, end, start, wildCardMetrics.values(), sourcetypes)
 
     @inlineCallbacks
     def fetchChunks(self, chunkSize, end, start, metrics, sourcetypes):
@@ -268,10 +274,10 @@ class MetricServiceReadThroughCache(ReadThroughCache):
     def cacheSome(self, end, start, metrics):
         log.debug("metrics: %s", metrics)
         request = dict(
-            returnset='LAST',
+            returnset='last',
             start=start,
             end=end,
-            metrics=metrics
+            queries=metrics
         )
         body = FileBodyProducer(StringIO(json.dumps(request)))
         d = self.agent.request('POST', self._metric_url, self._headers2, body)
@@ -279,16 +285,19 @@ class MetricServiceReadThroughCache(ReadThroughCache):
         return d
 
     def onMetricsFetch(self, response):
-        results = json.loads(response)['results']
+        results = json.loads(response)['series']
         log.debug("Success retrieving %s results", len(results))
         for row in results:
+            metricName = row["metric"]
+            contextUUID = row["tags"]["contextUUID"]
+            device = row["tags"]["device"]
+            cacheKey = "%s/%s_AVERAGE" % (contextUUID, metricName.replace("%s/"%device, ""))
             if row.get('datapoints'):
-                self._cache[row['metric']] = row.get('datapoints')[0]['value']
-                log.debug("cached %s: %s", row['metric'], self._cache[row['metric']])
+                self._cache[cacheKey] = row.get('datapoints')[0][1]
             else:
                 # put an entry so we don't fetch it again
-                self._cache[row['metric']] = None
-                log.debug("unable to cache %s", row['metric'])
+                self._cache[cacheKey] = None
+                log.debug("unable to cache %s", cacheKey)
         return len(results)
 
     def onError(self, reason):
