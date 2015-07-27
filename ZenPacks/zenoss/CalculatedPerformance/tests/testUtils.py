@@ -15,16 +15,33 @@ from ZenPacks.zenoss.CalculatedPerformance.utils import *
 class TestUtils(BaseTestCase):
     def testTopoSort(self):
         d1 = {
-            2: {11},
-            9: {11, 8},
-            10: {11, 3},
-            11: {7, 5},
-            8: {7, 3},
-            3: set(),
-            5: set(),
-            7: set(),
+            2: {11},     # depends on dependent items,
+            9: {11, 8},  #   will turn into last 3 items
+            10: {11, 3}, # "
+            11: {7, 5},  # depends on independent items,
+            8: {7, 3},   #   will turn into [-5:-3]
+            3: set(),    # independent, will turn into
+            5: set(),    #   first several items
+            7: set(),    # "
         }
-        self.assertEqual(list(toposort(d1)), [3, 5, 7, 8, 11, 9, 2, 10])
+        # the generally useful toposort implementation was far slower, thus the
+        # need to introduce mock datasources as that is what it expects now.
+        class MockDs(object):
+            def __init__(self, key, value):
+                self.datasource = '%s' % key
+                self.device = '%s' % key
+                self.component = '%s' % key
+                self.params = {}
+                self.params['targets'] = [{'id': '%s' % x, 'device': {'id': '%s' % x}} for x in value]
+                self.params['targetDatapoints'] = [('%s' % x,) for x in value]
+        d2 = [MockDs(key, value) for key, value in d1.iteritems()]
+        datasourcesByKey = {dsKey(ds): ds for ds in d2}
+        expected = ['11_11:3', '11_11:8', '3_3:11', '3_3:3', '3_3:7', '5_5:5', '5_5:7', '7_7:3', '7_7:5', '7_7:7', '8_8:11', '11_11:11', '8_8:8', '10_10:10', '2_2:2', '9_9:9']
+        initialOutput = list(toposort(d2, datasourcesByKey))
+        # 3 ranges of initialOutput are sorted, so that the output is
+        # only tested for topological correctness and content
+        result = sorted(initialOutput[:-5]) + sorted(initialOutput[-5:-3]) + sorted(initialOutput[-3:])
+        self.assertEqual(result, expected)
 
     def testGetTargetId(self):
         self.assertEqual(getTargetId({}), '_')
