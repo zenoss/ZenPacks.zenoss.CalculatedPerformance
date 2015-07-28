@@ -144,21 +144,19 @@ class RRDReadThroughCache(ReadThroughCache):
                 return nonNans[-1][0]
 
 
-class MetricServiceReadThroughCache(ReadThroughCache):
+class BaseMetricServiceReadThroughCache(ReadThroughCache):
     # TODO: refactor this to use Products/ZenUtils/MetricServiceRequest.py
 
     # use a shared cookie jar so all Metric requests can share the same session
     cookieJar = CookieJar()
 
     def __init__(self):
-        from Products.Zuul.facades.metricfacade import DATE_FORMAT, METRIC_URL_PATH, AGGREGATION_MAPPING
+        from Products.Zuul.facades.metricfacade import DATE_FORMAT, AGGREGATION_MAPPING
 
         self._datefmt = DATE_FORMAT
         self._aggMapping = AGGREGATION_MAPPING
         self._cache = {}
         self._targetKey = 'uuid'
-        urlstart = getGlobalConfiguration().get('metric-url', 'http://localhost:8080')
-        self._metric_url = '%s/%s' % (urlstart, 'api/performance/query2')
         from Products.Zuul.interfaces import IAuthorizationTool
 
         creds = IAuthorizationTool(None).extractGlobalConfCredentials()
@@ -200,7 +198,7 @@ class MetricServiceReadThroughCache(ReadThroughCache):
                     log.debug("already found in ds points %s", dsdpID)
                 else:
                     dsPoints.add(dsdpID)
-        wildCardMetrics = {} #key is metricname, value is query with contextuuid as wildcard
+        metrics = {}
         for datasource in datasources:
             for dsname, datapoint, rra, rrdtype in datasource.params['targetDatapoints']:
                 for targetConfig in datasource.params['targets']:
@@ -223,30 +221,13 @@ class MetricServiceReadThroughCache(ReadThroughCache):
                     rate = rrdtype.lower() in ('counter', 'derive')
                     dsclassname = datasource.params['datasourceClassName']
                     sourcetypes[dsclassname] += 1
-                    _tmp = dict(
-                        metric=name,
-                        aggregator=self._aggMapping.get(rra.lower(), rra.lower()),
-                        rpn='',
-                        rate=rate,
-                        format='%.2lf',
-                        tags=dict(contextUUID=[uuid]),
-                        name='%s' % cachekey
-                    )
-                    log.debug("cachekey: %s %s", cachekey, _tmp)
-                    if name not in wildCardMetrics:
-                        wildCardMetrics[name]= dict(
-                                metric=name,
-                                #aggregator=self._aggMapping.get(rra.lower(), rra.lower()),
-                                rate=rate,
-                                tags=dict(contextUUID=["*"])
-                        )
-        if not len(wildCardMetrics):
+                    self._insert_key(metrics, name, rra, rate, uuid, cachekey)
+        if not len(metrics):
             return
 
-        end = int(time.time())
-        start = end - 600
+        end, start = self._get_end_and_start()
         chunkSize = 1000
-        yield self.fetchChunks(chunkSize, end, start, wildCardMetrics.values(), sourcetypes)
+        yield self.fetchChunks(chunkSize, end, start, metrics.values(), sourcetypes)
 
     @inlineCallbacks
     def fetchChunks(self, chunkSize, end, start, metrics, sourcetypes):
@@ -274,15 +255,94 @@ class MetricServiceReadThroughCache(ReadThroughCache):
     def cacheSome(self, end, start, metrics):
         log.debug("metrics: %s", metrics)
         request = dict(
-            returnset='last',
+            returnset=self._returnset,
             start=start,
-            end=end,
-            queries=metrics
+            end=end
         )
+        request[self._metrics_key] = metrics
         body = FileBodyProducer(StringIO(json.dumps(request)))
         d = self.agent.request('POST', self._metric_url, self._headers2, body)
         d.addCallbacks(self.handleMetricResponse, self.onError)
         return d
+
+    def onError(self, reason):
+        log.warn("Unable to fetch metrics from central query: %s", reason)
+        return reason
+
+    def handleMetricResponse(self, response):
+        d = readBody(response)
+        if response.code > 199 and response.code < 300:
+            d.addCallback(self.onMetricsFetch)
+        else:
+            d.addCallback(self.onError)
+        return d
+
+
+class MetricServiceReadThroughCache(BaseMetricServiceReadThroughCache):
+
+    def __init__(self):
+        super(MetricServiceReadThroughCache, self).__init__()
+        from Products.Zuul.facades.metricfacade import METRIC_URL_PATH
+        urlstart = getGlobalConfiguration().get('metric-url', 'http://localhost:8080')
+        self._metric_url = '%s/%s' % (urlstart, METRIC_URL_PATH)
+        self._returnset = 'LAST'
+        self._metrics_key = 'metrics'
+
+    def _insert_key(self, metrics, name, rra, rate, uuid, cachekey):
+        _tmp = dict(
+            metric=name,
+            aggregator=self._aggMapping.get(rra.lower(), rra.lower()),
+            rpn='',
+            rate=rate,
+            format='%.2lf',
+            tags=dict(contextUUID=[uuid]),
+            name='%s' % cachekey
+        )
+        log.debug("cachekey: %s %s", cachekey, _tmp)
+        metrics[cachekey] = _tmp
+
+    def _get_end_and_start(self):
+        today = datetime.today()
+        end = today.strftime(self._datefmt)
+        start = (today - timedelta(seconds=600)).strftime(self._datefmt)
+        return end, start
+
+    def onMetricsFetch(self, response):
+        results = json.loads(response)['results']
+        log.debug("Success retrieving %s results", len(results))
+        for row in results:
+            if row.get('datapoints'):
+                self._cache[row['metric']] = row.get('datapoints')[0]['value']
+                log.debug("cached %s: %s", row['metric'], self._cache[row['metric']])
+            else:
+                # put an entry so we don't fetch it again
+                self._cache[row['metric']] = None
+                log.debug("unable to cache %s", row['metric'])
+        return len(results)
+
+
+class WildcardMetricServiceReadThroughCache(BaseMetricServiceReadThroughCache):
+
+    def __init__(self):
+        super(WildcardMetricServiceReadThroughCache, self).__init__()
+        from Products.Zuul.facades.metricfacade import WILDCARD_URL_PATH
+        urlstart = getGlobalConfiguration().get('metric-url', 'http://localhost:8080')
+        self._metric_url = '%s/%s' % (urlstart, WILDCARD_URL_PATH)
+        self._returnset = 'last'
+        self._metrics_key = 'queries'
+
+    def _insert_key(self, metrics, name, rra, rate, uuid, cachekey):
+        if name not in metrics:
+            metrics[name]= dict(
+                    metric=name,
+                    rate=rate,
+                    tags=dict(contextUUID=["*"])
+            )
+
+    def _get_end_and_start(self):
+        end = int(time.time())
+        start = end - 600
+        return end, start
 
     def onMetricsFetch(self, response):
         results = json.loads(response)['series']
@@ -300,24 +360,21 @@ class MetricServiceReadThroughCache(ReadThroughCache):
                 log.debug("unable to cache %s", cacheKey)
         return len(results)
 
-    def onError(self, reason):
-        log.warn("Unable to fetch metrics from central query: %s", reason)
-        return reason
-
-    def handleMetricResponse(self, response):
-        d = readBody(response)
-        if response.code > 199 and response.code < 300:
-            d.addCallback(self.onMetricsFetch)
-        else:
-            d.addCallback(self.onError)
-        return d
-
 
 def getReadThroughCache():
     try:
         import Products.Zuul.facades.metricfacade
+        try:
+            from Products.Zuul.facades.metricfacade import WILDCARD_URL_PATH
+            log.debug("CalculatedPerformance is using WildcardMetricServiceReadThroughCache")
+            return WildcardMetricServiceReadThroughCache()
 
-        return MetricServiceReadThroughCache()
+        except ImportError, e:
+            # must be 5.0.x
+            log.debug("CalculatedPerformance is using MetricServiceReadThroughCache")
+            return MetricServiceReadThroughCache()
+
     except ImportError, e:
         # must be 4.x
+        log.debug("CalculatedPerformance is using RRDReadThroughCache")
         return RRDReadThroughCache()
