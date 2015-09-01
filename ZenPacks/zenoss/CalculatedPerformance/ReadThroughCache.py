@@ -13,8 +13,14 @@ import logging
 from StringIO import StringIO
 from cookielib import CookieJar
 from twisted.internet import reactor
-from twisted.web.client import Agent, CookieAgent, FileBodyProducer, readBody
-from twisted.web.http_headers import Headers
+
+try:
+    from twisted.web.client import Agent, CookieAgent, FileBodyProducer, readBody
+    from twisted.web.http_headers import Headers
+except ImportError:
+    # Zenoss 4 won't have CookieAgent or FileBodyProducer. This is OK
+    # because RRDReadThroughCache doesn't use them.
+    pass
 
 from twisted.internet.defer import inlineCallbacks
 from Products.ZenCollector.interfaces import IDataService
@@ -132,7 +138,7 @@ class RRDReadThroughCache(ReadThroughCache):
     def _readLastValue(self, targetPath, datasource, datapoint, rra='AVERAGE', rrdtype="GAUGE", ago=300,
                        targetConfig={}):
         realPath = self._performancePath(targetPath) + '/%s_%s.rrd' % (datasource, datapoint)
-        result = getUtility(IDataService).readRRD(realPath, rra, 'now-%ds' % ago, 'now')
+        result = getUtility(IDataService).readRRD(str(realPath), rra, 'now-%ds' % ago, 'now')
 
         if result is not None:
             # filter RRD's last 1-2 NaNs out of here, use the latest available value
