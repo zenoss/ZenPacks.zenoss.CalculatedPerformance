@@ -466,7 +466,13 @@ class DerivedDataSourceProxyingPlugin(PythonDataSourcePlugin):
 
                     for datapoint in collectedPoints:
                         rrdPath = datapoint.rrdPath.rsplit('/', 1)[0]
-                        contextUUID = datapoint.metadata["contextUUID"]
+
+                        # Datapoint metadata only exists in Zenoss 5.
+                        if hasattr(datapoint, 'metadata'):
+                            contextUUID = datapoint.metadata["contextUUID"]
+                        else:
+                            contextUUID = rrdPath
+
                         value = (resultValues.get(datapoint.id, None) or
                                  resultValues.get('_'.join((datasource.datasource, datapoint.id))))[0]
                         for rra in ('AVERAGE', 'MIN', 'MAX', 'LAST'):
