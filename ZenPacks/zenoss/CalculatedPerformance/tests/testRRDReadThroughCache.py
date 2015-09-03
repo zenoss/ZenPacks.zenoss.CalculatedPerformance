@@ -20,7 +20,7 @@ class TestRRDReadThroughCache(BaseTestCase):
     def testPut(self):
         cache = getReadThroughCache()
         testKey = cache._getKey('ds', 'dp', 'rra', '1')
-        cache.put('ds', 'dp', 'rra', '1', 42.0)
+        cache.put('ds', 'dp', 'rra', 'perf/path', '1', 42.0)
         cache._readLastValue = mockReturnValue(54.11)
         self.assertIn(testKey, cache._cache)
         self.assertEqual(cache.getLastValue('ds', 'dp', 'rra', "GAUGE", 1, {'rrdpath': 'perf/path', 'uuid': 1}), 42.0)
@@ -59,12 +59,12 @@ class TestRRDReadThroughCache(BaseTestCase):
 
         testKey = cache._getKey('ds', 'dp', 'rra', '1')
 
-        cache.put('ds', 'dp', 'rra', '1', 42.0)
+        cache.put('ds', 'dp', 'rra', 'perf/path', '1', 42.0)
         self.assertIn(testKey, cache._cache)
         cache.invalidate(testKey)
         self.assertNotIn(testKey, cache._cache)
 
-        cache.put('ds', 'dp', 'rra', '1', 42.0)
+        cache.put('ds', 'dp', 'rra', 'perf/path', '1', 42.0)
         self.assertIn(testKey, cache._cache)
         cache.invalidate()
         self.assertNotIn(testKey, cache._cache)
