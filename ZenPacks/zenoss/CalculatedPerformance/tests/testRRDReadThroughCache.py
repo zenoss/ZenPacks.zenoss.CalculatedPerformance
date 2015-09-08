@@ -6,7 +6,6 @@
 #
 import Globals
 import unittest
-from mock import MagicMock, patch, DEFAULT
 from Products.ZenTestCase.BaseTestCase import BaseTestCase
 from ZenPacks.zenoss.CalculatedPerformance.ReadThroughCache import getReadThroughCache
 
