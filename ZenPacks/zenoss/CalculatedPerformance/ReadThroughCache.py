@@ -138,7 +138,12 @@ class RRDReadThroughCache(ReadThroughCache):
     def _readLastValue(self, targetPath, datasource, datapoint, rra='AVERAGE', rrdtype="GAUGE", ago=300,
                        targetConfig={}):
         realPath = self._performancePath(targetPath) + '/%s_%s.rrd' % (datasource, datapoint)
-        result = getUtility(IDataService).readRRD(str(realPath), rra, 'now-%ds' % ago, 'now')
+
+        try:
+            result = getUtility(IDataService).readRRD(
+                str(realPath), rra, 'now-%ds' % ago, 'now')
+        except StandardError:
+            return None
 
         if result is not None:
             # filter RRD's last 1-2 NaNs out of here, use the latest available value
