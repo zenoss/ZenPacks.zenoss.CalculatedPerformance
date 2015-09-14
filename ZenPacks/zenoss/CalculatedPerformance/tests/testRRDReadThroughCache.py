@@ -16,9 +16,18 @@ def mockReturnValue(value):
 
 class TestRRDReadThroughCache(BaseTestCase):
 
+    def _getKey(self, ds, dp, rra, rrdpath, uuid):
+        """Return correct cache key for cache implementation."""
+        cache = getReadThroughCache()
+        self.assertIn(cache._targetKey, ('rrdpath', 'uuid'))
+        if cache._targetKey == 'uuid':
+            return cache._getKey(ds, dp, rra, uuid)
+        elif cache._targetKey == 'rrdpath':
+            return cache._getKey(ds, dp, rra, rrdpath)
+
     def testPut(self):
         cache = getReadThroughCache()
-        testKey = cache._getKey('ds', 'dp', 'rra', '1')
+        testKey = self._getKey('ds', 'dp', 'rra', 'perf/path', '1')
         cache.put('ds', 'dp', 'rra', 'perf/path', '1', 42.0)
         cache._readLastValue = mockReturnValue(54.11)
         self.assertIn(testKey, cache._cache)
@@ -26,7 +35,7 @@ class TestRRDReadThroughCache(BaseTestCase):
 
     def testGetLastValue(self):
         cache = getReadThroughCache()
-        testKey = cache._getKey('ds', 'dp', 'rra', '1')
+        testKey = self._getKey('ds', 'dp', 'rra', 'perf/path', '1')
         cache._readLastValue = mockReturnValue(54.11)
         self.assertNotIn(testKey, cache._cache)
         self.assertEqual(cache.getLastValue('ds', 'dp', 'rra', "GAUGE", 1, {'rrdpath': 'perf/path', 'uuid': 1}), 54.11)
@@ -38,7 +47,9 @@ class TestRRDReadThroughCache(BaseTestCase):
         cache = getReadThroughCache()
         targets = [{'rrdpath': 'perf/path1', 'uuid': '1'},
                    {'rrdpath': 'perf/path2', 'uuid': '2'}]
-        testKeys = [cache._getKey('ds', 'dp', 'rra', target['uuid']) for target in targets]
+        testKeys = [
+            self._getKey('ds', 'dp', 'rra', target['rrdpath'], target['uuid'])
+            for target in targets]
         cache._readLastValue = mockReturnValue(54.11)
         for testKey in testKeys:
             self.assertNotIn(testKey, cache._cache)
@@ -56,7 +67,7 @@ class TestRRDReadThroughCache(BaseTestCase):
     def testInvalidate(self):
         cache = getReadThroughCache()
 
-        testKey = cache._getKey('ds', 'dp', 'rra', '1')
+        testKey = self._getKey('ds', 'dp', 'rra', 'perf/path', '1')
 
         cache.put('ds', 'dp', 'rra', 'perf/path', '1', 42.0)
         self.assertIn(testKey, cache._cache)
