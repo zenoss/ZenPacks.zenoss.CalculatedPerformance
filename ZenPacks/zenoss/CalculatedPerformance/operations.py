@@ -85,7 +85,7 @@ avg = amean
 
 
 def median(valuemap):
-    return _median(valuemap.values(), valuemap)
+    return _median(valuemap.values()), valuemap
 
 
 def _deviations(midpointFunc, values):
