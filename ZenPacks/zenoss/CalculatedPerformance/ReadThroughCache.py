@@ -1,13 +1,28 @@
-# 
+#
 # Copyright (C) Zenoss, Inc. 2014, all rights reserved.
-# 
+#
 # This content is made available according to terms specified in
 # License.zenoss under the directory where your Zenoss product is installed.
 #
 from datetime import datetime, timedelta
+import time
 import base64
 import json
 import logging
+
+from StringIO import StringIO
+from cookielib import CookieJar
+from twisted.internet import reactor
+
+try:
+    from twisted.web.client import Agent, CookieAgent, FileBodyProducer, readBody
+    from twisted.web.http_headers import Headers
+except ImportError:
+    # Zenoss 4 won't have CookieAgent or FileBodyProducer. This is OK
+    # because RRDReadThroughCache doesn't use them.
+    pass
+
+from twisted.internet.defer import inlineCallbacks
 from Products.ZenCollector.interfaces import IDataService
 from Products.ZenUtils.GlobalConfig import getGlobalConfiguration
 from ZenPacks.zenoss.CalculatedPerformance.utils import getTargetId
@@ -15,12 +30,12 @@ from zope.component import getUtility
 
 log = logging.getLogger('zen.ReadThroughCache')
 
-class ReadThroughCache(object):
 
+class ReadThroughCache(object):
     def _getKey(self, datasource, datapoint, rra, targetValue):
         return '%s/%s_%s_%s' % (targetValue, datasource, datapoint, rra)
 
-    def getLastValues(self, datasource, datapoint, rra='AVERAGE', ago=300, targets=()):
+    def getLastValues(self, datasource, datapoint, rra='AVERAGE', rrdtype="GAUGE", ago=300, targets=()):
         """
         Get the last value from the specified rrd for each target.
 
@@ -46,14 +61,15 @@ class ReadThroughCache(object):
         errors = []
         for targetConfig in targets:
             try:
-                valueMap[targetConfig['uuid']] = self.getLastValue(datasource, datapoint, rra, ago, targetConfig)
+                valueMap[targetConfig['uuid']] = self.getLastValue(datasource, datapoint, rra, rrdtype, ago,
+                                                                   targetConfig)
             except StandardError as ex:
                 msg = "Failure reading configured datapoint %s_%s on target %s" % \
                       (datasource, datapoint, getTargetId(targetConfig))
                 errors.append((ex, msg))
         return {k: v for k, v in valueMap.items() if v is not None}, errors
 
-    def getLastValue(self, datasource, datapoint, rra='AVERAGE', ago=300, targetConfig={}):
+    def getLastValue(self, datasource, datapoint, rra='AVERAGE', rrdtype="GAUGE", ago=300, targetConfig={}):
         """
 
         @param datasource: target datasource id
@@ -78,12 +94,12 @@ class ReadThroughCache(object):
             return None
 
         cachekey = self._getKey(datasource, datapoint, rra, targetValue)
-        #fetch from the cache if able
+        # fetch from the cache if able
         if cachekey in self._cache:
             log.debug("Using cached value for %s: %s", cachekey, self._cache[cachekey])
             return self._cache[cachekey]
-
-        readValue = self._readLastValue(targetValue, datasource, datapoint, rra, ago)
+        log.debug("Not Using cached value for %s", cachekey)
+        readValue = self._readLastValue(targetValue, datasource, datapoint, rra, rrdtype, ago, targetConfig)
 
         if readValue is not None:
             self._cache[cachekey] = readValue
@@ -100,23 +116,34 @@ class ReadThroughCache(object):
         else:
             self._cache = {}
 
-    def put(self, datasource, datapoint, rra, targetValue, value):
+    def put(self, datasource, datapoint, rra, targetPath, targetID, value):
         """
         Place a value in the rrd cache
         """
-        rrdcachekey = self._getKey(datasource, datapoint, rra, targetValue)
+        val = targetPath
+        if self._targetKey == "uuid":
+            val = targetID
+        rrdcachekey = self._getKey(datasource, datapoint, rra, val)
         self._cache[rrdcachekey] = value
+
 
 class RRDReadThroughCache(ReadThroughCache):
     def __init__(self):
         self._cache = {}
         self._targetKey = 'rrdpath'
         from Products.ZenModel.PerformanceConf import performancePath
+
         self._performancePath = performancePath
 
-    def _readLastValue(self, targetPath, datasource, datapoint, rra='AVERAGE', ago=300):
+    def _readLastValue(self, targetPath, datasource, datapoint, rra='AVERAGE', rrdtype="GAUGE", ago=300,
+                       targetConfig={}):
         realPath = self._performancePath(targetPath) + '/%s_%s.rrd' % (datasource, datapoint)
-        result = getUtility(IDataService).readRRD(realPath, rra, 'now-%ds' % ago, 'now')
+
+        try:
+            result = getUtility(IDataService).readRRD(
+                str(realPath), rra, 'now-%ds' % ago, 'now')
+        except StandardError:
+            return None
 
         if result is not None:
             # filter RRD's last 1-2 NaNs out of here, use the latest available value
@@ -127,60 +154,238 @@ class RRDReadThroughCache(ReadThroughCache):
             if nonNans:
                 return nonNans[-1][0]
 
-class MetricServiceReadThroughCache(ReadThroughCache):
-    
-    _requests = None
+
+class BaseMetricServiceReadThroughCache(ReadThroughCache):
+    # TODO: refactor this to use Products/ZenUtils/MetricServiceRequest.py
+
+    # use a shared cookie jar so all Metric requests can share the same session
+    cookieJar = CookieJar()
 
     def __init__(self):
-        from Products.Zuul.facades.metricfacade import DATE_FORMAT, METRIC_URL_PATH, AGGREGATION_MAPPING
+        from Products.Zuul.facades.metricfacade import DATE_FORMAT, AGGREGATION_MAPPING
+
         self._datefmt = DATE_FORMAT
         self._aggMapping = AGGREGATION_MAPPING
         self._cache = {}
         self._targetKey = 'uuid'
-        urlstart = getGlobalConfiguration().get('metric-url', 'http://localhost:8080')
-        self._metric_url = '%s/%s' % (urlstart, METRIC_URL_PATH)
         from Products.Zuul.interfaces import IAuthorizationTool
+
         creds = IAuthorizationTool(None).extractGlobalConfCredentials()
         auth = base64.b64encode('{login}:{password}'.format(**creds))
-        self._headers = {
-            'Authorization': 'basic %s' % auth,
-            'content-type': 'application/json',
-            'User-Agent': 'Zenoss: ZenPacks.zenoss.CalculatedPerformance'
-        }
+        self.agent = CookieAgent(Agent(reactor, connectTimeout=30), self.cookieJar)
+        self._headers2 = Headers({
+            'Authorization': ['basic %s' % auth],
+            'Content-Type': ['application/json'],
+            'User-Agent': ['Zenoss: ZenPacks.zenoss.CalculatedPerformance'],
+        })
 
-    def _readLastValue(self, uuid, datasource, datapoint, rra='AVERAGE', ago=300):
+    def _readLastValue(self, uuid, datasource, datapoint, rra='AVERAGE', rrdtype="GAUGE", ago=300, targetConfig={}):
+        from Products.ZenUtils.metrics import ensure_prefix
+
         metrics = []
-        metrics.append(dict(
-            metric=datapoint,
+        if targetConfig.get('device'):
+            deviceId = targetConfig['device']['id']
+        else:
+            deviceId = targetConfig.get('id')
+        if not deviceId:
+            return None
+        name = ensure_prefix(deviceId, datasource + "_" + datapoint)
+        log.debug("should not need to fetch metric: %s %s_%s", name, uuid, datapoint)
+
+    @inlineCallbacks
+    def batchFetchMetrics(self, datasources):
+        log.debug("Batch Fetching metrics from central query")
+        from Products.ZenUtils.metrics import ensure_prefix
+        from collections import defaultdict
+
+        sourcetypes = defaultdict(int)
+
+        dsPoints = set()
+
+        for ds in datasources:
+            for dp in ds.points:
+                dsdpID = "%s/%s" % (dp.metadata["contextUUID"], dp.dpName)
+                if dsdpID in dsPoints:
+                    log.debug("already found in ds points %s", dsdpID)
+                else:
+                    dsPoints.add(dsdpID)
+        metrics = {}
+        for datasource in datasources:
+            for dsname, datapoint, rra, rrdtype in datasource.params['targetDatapoints']:
+                for targetConfig in datasource.params['targets']:
+                    targetValue = targetConfig.get(self._targetKey, None)
+                    uuid = targetValue
+                    # filter out target datapoints that match a datasource datapoint
+                    # Target datapoints are what a datasource is made up of, if the
+                    # target point is also a datasource datapoint that means we don't
+                    # have to query for it since it will be calculated
+                    filterKey = "%s/%s_%s" % (targetConfig.get("uuid", None), dsname, datapoint)
+                    if filterKey in dsPoints:
+                        log.debug("skipping target datapoint %s, since also a datasource datapoint", filterKey)
+                        continue
+                    cachekey = self._getKey(dsname, datapoint, rra, targetValue)
+                    if not targetConfig.get('device'):
+                        deviceId = targetConfig.get('id')
+                    else:
+                        deviceId = targetConfig['device']['id']
+                    name = ensure_prefix(deviceId, dsname + "_" + datapoint)
+                    rate = rrdtype.lower() in ('counter', 'derive')
+                    dsclassname = datasource.params['datasourceClassName']
+                    sourcetypes[dsclassname] += 1
+                    self._insert_key(metrics, name, rra, rate, uuid, cachekey)
+        if not len(metrics):
+            return
+
+        end, start = self._get_end_and_start()
+        chunkSize = 1000
+        yield self.fetchChunks(chunkSize, end, start, metrics.values(), sourcetypes)
+
+    @inlineCallbacks
+    def fetchChunks(self, chunkSize, end, start, metrics, sourcetypes):
+        log.debug("About to request %s metrics from Central Query, in chunks of %s", len(metrics), chunkSize)
+        startPostTime = time.time()
+        for x in range(0, len(metrics) / chunkSize + 1):
+            ms = metrics[x * chunkSize:x * chunkSize + chunkSize]
+            if not len(ms):
+                log.debug("skipping chunk at x %s", x)
+                continue
+            try:
+                yield self.cacheSome(end, start, ms)
+            except Exception as ex:
+                msg = "Failure caching metrics: %s" % (ms)
+                log.error((ex, msg))
+
+        endPostTime = time.time()
+        timeTaken = endPostTime - startPostTime
+        timeLogFn = log.debug
+        if timeTaken > 60.0:
+            timeLogFn = log.warn
+        timeLogFn("  Took %.1f seconds total to batch fetch metrics in chunks of %s: %s", timeTaken, chunkSize,
+                  sourcetypes)
+
+    def cacheSome(self, end, start, metrics):
+        log.debug("metrics: %s", metrics)
+        request = dict(
+            returnset=self._returnset,
+            start=start,
+            end=end
+        )
+        request[self._metrics_key] = metrics
+        body = FileBodyProducer(StringIO(json.dumps(request)))
+        d = self.agent.request('POST', self._metric_url, self._headers2, body)
+        d.addCallbacks(self.handleMetricResponse, self.onError)
+        return d
+
+    def onError(self, reason):
+        log.warn("Unable to fetch metrics from central query: %s", reason)
+        return reason
+
+    def handleMetricResponse(self, response):
+        d = readBody(response)
+        if response.code > 199 and response.code < 300:
+            d.addCallback(self.onMetricsFetch)
+        else:
+            d.addCallback(self.onError)
+        return d
+
+
+class MetricServiceReadThroughCache(BaseMetricServiceReadThroughCache):
+
+    def __init__(self):
+        super(MetricServiceReadThroughCache, self).__init__()
+        from Products.Zuul.facades.metricfacade import METRIC_URL_PATH
+        urlstart = getGlobalConfiguration().get('metric-url', 'http://localhost:8080')
+        self._metric_url = '%s/%s' % (urlstart, METRIC_URL_PATH)
+        self._returnset = 'LAST'
+        self._metrics_key = 'metrics'
+
+    def _insert_key(self, metrics, name, rra, rate, uuid, cachekey):
+        _tmp = dict(
+            metric=name,
             aggregator=self._aggMapping.get(rra.lower(), rra.lower()),
             rpn='',
+            rate=rate,
             format='%.2lf',
-            tags=dict(uuid=[uuid], datasource=[datasource]),
-            rate=False,
-            name='%s_%s' % (uuid, datapoint)
-        ))
-        end = datetime.today().strftime(self._datefmt)
-        start = (datetime.today() - timedelta(seconds=600)).strftime(self._datefmt)
-        request = dict(
-            returnset='LAST',
-            start=start,
-            end=end,
-            metrics=metrics
+            tags=dict(contextUUID=[uuid]),
+            name='%s' % cachekey
         )
-        response = self._requests.post(self._metric_url, json.dumps(request),
-                headers=self._headers)
-        if response.status_code > 199 and response.status_code < 300:
-            results = response.json()['results']
-            if results and results[0]['datapoints']:
-                return results[0]['datapoints'][-1]['value']
+        log.debug("cachekey: %s %s", cachekey, _tmp)
+        metrics[cachekey] = _tmp
+
+    def _get_end_and_start(self):
+        today = datetime.today()
+        end = today.strftime(self._datefmt)
+        start = (today - timedelta(seconds=600)).strftime(self._datefmt)
+        return end, start
+
+    def onMetricsFetch(self, response):
+        results = json.loads(response)['results']
+        log.debug("Success retrieving %s results", len(results))
+        for row in results:
+            if row.get('datapoints'):
+                self._cache[row['metric']] = row.get('datapoints')[0]['value']
+                log.debug("cached %s: %s", row['metric'], self._cache[row['metric']])
+            else:
+                # put an entry so we don't fetch it again
+                self._cache[row['metric']] = None
+                log.debug("unable to cache %s", row['metric'])
+        return len(results)
+
+
+class WildcardMetricServiceReadThroughCache(BaseMetricServiceReadThroughCache):
+
+    def __init__(self):
+        super(WildcardMetricServiceReadThroughCache, self).__init__()
+        from Products.Zuul.facades.metricfacade import WILDCARD_URL_PATH
+        urlstart = getGlobalConfiguration().get('metric-url', 'http://localhost:8080')
+        self._metric_url = '%s/%s' % (urlstart, WILDCARD_URL_PATH)
+        self._returnset = 'last'
+        self._metrics_key = 'queries'
+
+    def _insert_key(self, metrics, name, rra, rate, uuid, cachekey):
+        if name not in metrics:
+            metrics[name]= dict(
+                    metric=name,
+                    rate=rate,
+                    tags=dict(contextUUID=["*"])
+            )
+
+    def _get_end_and_start(self):
+        end = int(time.time())
+        start = end - 600
+        return end, start
+
+    def onMetricsFetch(self, response):
+        results = json.loads(response)['series']
+        log.debug("Success retrieving %s results", len(results))
+        for row in results:
+            metricName = row["metric"]
+            contextUUID = row["tags"]["contextUUID"]
+            device = row["tags"]["device"]
+            cacheKey = "%s/%s_AVERAGE" % (contextUUID, metricName.replace("%s/"%device, ""))
+            if row.get('datapoints'):
+                self._cache[cacheKey] = row.get('datapoints')[0][1]
+            else:
+                # put an entry so we don't fetch it again
+                self._cache[cacheKey] = None
+                log.debug("unable to cache %s", cacheKey)
+        return len(results)
+
 
 def getReadThroughCache():
     try:
         import Products.Zuul.facades.metricfacade
-        if not MetricServiceReadThroughCache._requests:
-            import requests
-            MetricServiceReadThroughCache._requests = requests.Session()
-        return MetricServiceReadThroughCache()
+        try:
+            from Products.Zuul.facades.metricfacade import WILDCARD_URL_PATH
+            log.debug("CalculatedPerformance is using WildcardMetricServiceReadThroughCache")
+            return WildcardMetricServiceReadThroughCache()
+
+        except ImportError, e:
+            # must be 5.0.x
+            log.debug("CalculatedPerformance is using MetricServiceReadThroughCache")
+            return MetricServiceReadThroughCache()
+
     except ImportError, e:
         # must be 4.x
+        log.debug("CalculatedPerformance is using RRDReadThroughCache")
         return RRDReadThroughCache()

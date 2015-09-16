@@ -14,16 +14,34 @@ from Products.ZenModel.OperatingSystem import OperatingSystem
 from Products.ZenModel.ZenModelRM import ZenModelRM
 
 
-def toposort(depDict):
+def dsKey(ds):
+    return '%s_%s:%s' % (
+        ds.device,
+        ds.component or '',
+        ds.datasource
+    )
+
+
+def toposort(datasources, datasourcesByKey):
     """
     A leaf-first topological sort on dependencies
     """
-    for k, v in depDict.items():
-        v.discard(k)
+    depDict = {}
 
     # Find all items that don't depend on anything
-    extra_items_in_deps = reduce(set.union, depDict.itervalues()) - set(depDict.iterkeys())
-    depDict.update({item: set() for item in extra_items_in_deps})
+    for ds in datasources:
+        targetKeys = set()
+        dskey = dsKey(ds)
+        for target in ds.params.get('targets', []):
+            targetElementId = getTargetId(target)
+            for targetDatapoint in ds.params.get('targetDatapoints', []):
+                tkey = '%s:%s' % (targetElementId, targetDatapoint[0])
+                if tkey == dskey:
+                    continue
+                targetKeys.add(tkey)
+                if not datasourcesByKey.has_key(tkey):
+                    depDict[tkey] = set()
+        depDict[dsKey(ds)] = targetKeys
 
     while True:
         ordered = set(item for item, dep in depDict.iteritems() if not dep)
@@ -34,6 +52,7 @@ def toposort(depDict):
         depDict = {item: (dep - ordered)
                 for item, dep in depDict.iteritems()
                     if item not in ordered}
+
     if depDict:
         raise Exception("Cyclic dependencies exist among these items:\n%s" % '\n'.join(
             repr(x) for x in depDict.iteritems()))

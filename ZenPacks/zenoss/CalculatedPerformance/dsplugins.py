@@ -17,7 +17,7 @@ from Products.ZenUtils.Utils import monkeypatch
 from Products.Zuul import IInfo
 from ZenPacks.zenoss.CalculatedPerformance import operations
 from ZenPacks.zenoss.CalculatedPerformance.ReadThroughCache import getReadThroughCache
-from ZenPacks.zenoss.CalculatedPerformance.utils import toposort, getTargetId, grouper, dotTraverse, getVarNames, createDeviceDictionary
+from ZenPacks.zenoss.CalculatedPerformance.utils import toposort, grouper, dotTraverse, getVarNames, createDeviceDictionary, dsKey
 from ZenPacks.zenoss.PythonCollector.datasources.PythonDataSource \
     import PythonDataSourcePlugin
 from ZenPacks.zenoss.CalculatedPerformance.AggregatingDataPoint import AggregatingDataPoint
@@ -38,12 +38,6 @@ def getThresholdCacheKey(datasource, datapoint):
     return '%s_%s_%s_%s' % (datasource.device, datasource.component,
                             datasource.datasource, datapoint.id)
 
-def dsKey(ds):
-    return '%s_%s:%s' % (
-        ds.device,
-        ds.component or '',
-        ds.datasource
-    )
 
 def dsDescription(ds, devdict):
     return """expression: %s
@@ -61,19 +55,6 @@ datapoint: %s""" % (
         ds.datasource,
         ds.points[0].id
     )
-
-def dsTargetKeys(ds):
-    """
-    ds should have two params:
-        targets: list of targetInfo dicts from targetInfo(target) below.
-        targetDatapoints: list of tuples of (datasource_id, datapoint_id, RRA)
-    """
-    targetKeys = set()
-    for target in ds.params.get('targets', []):
-        targetElementId = getTargetId(target)
-        for targetDatapoint in ds.params.get('targetDatapoints', []):
-            targetKeys.add('%s:%s' % (targetElementId, targetDatapoint[0]))
-    return targetKeys
 
 
 def targetInfo(target):
@@ -106,8 +87,10 @@ class AggregatingDataSourcePlugin(object):
             targetInfos.append(targetInfo(member))
 
         targetArgValues = []
+        rrdtype = "GAUGE"
         for datapoint in datasource.datapoints():
             if isinstance(datapoint, AggregatingDataPoint):
+                rrdtype = datapoint.rrdtype
                 for att in getVarNames(datapoint.arguments.strip()):
                     targetArgValues.append(dotTraverse(context, att))
             else:
@@ -119,7 +102,7 @@ class AggregatingDataSourcePlugin(object):
         zDebug = context.getZ('zDatasourceDebugLogging')
         return dict(
             targetDatapoints = [(datasource.targetDataSource, datasource.targetDataPoint,
-                                 datasource.targetRRA or 'AVERAGE')],
+                                 datasource.targetRRA or 'AVERAGE', rrdtype)],
             targetArgValues=[tuple(targetArgValues)],
             targets=targetInfos,
             debug=datasource.debug or zDebug
@@ -132,12 +115,13 @@ class AggregatingDataSourcePlugin(object):
         debug = datasource.params.get('debug', None)
 
         #Aggregate datasources only have one target datapoint config
-        targetDatasource, targetDatapoint, targetRRA = datasource.params['targetDatapoints'][0]
+        targetDatasource, targetDatapoint, targetRRA, rrdtype = datasource.params['targetDatapoints'][0]
 
         targetValues, errors = yield self.getLastValues(rrdcache,
                                                 targetDatasource,
                                                 targetDatapoint,
                                                 targetRRA,
+                                                rrdtype,
                                                 datasource.cycletime,
                                                 datasource.params['targets'])
 
@@ -198,11 +182,11 @@ class AggregatingDataSourcePlugin(object):
         })
 
     @inlineCallbacks
-    def getLastValues(self, rrdcache, datasource, datapoint, rra='AVERAGE', cycleTime=300, targets=()):
+    def getLastValues(self, rrdcache, datasource, datapoint, rra='AVERAGE', rrdtype="GAUGE", cycleTime=300, targets=()):
         values = {}
         errors = []
         for chunk in grouper(RRD_READ_CHUNKS, targets):
-            chunkDict, chunkErrors = yield rrdcache.getLastValues(datasource, datapoint, rra, cycleTime*5, chunk)
+            chunkDict, chunkErrors = yield rrdcache.getLastValues(datasource, datapoint, rra, rrdtype, cycleTime*5, chunk)
             values.update(chunkDict)
             errors.extend(chunkErrors)
         returnValue((values, errors))
@@ -248,7 +232,7 @@ class CalculatedDataSourcePlugin(object):
 
             if att in allDatapointsByVarName:
                 datapoint = allDatapointsByVarName[att]
-                targetDataPoints.append((datapoint.datasource().id, datapoint.id, 'AVERAGE'))
+                targetDataPoints.append((datapoint.datasource().id, datapoint.id, 'AVERAGE', datapoint.rrdtype))
             else:
                 value = dotTraverse(context, att)
                 if not CalculatedDataSourcePlugin.isPicklable(value):
@@ -259,8 +243,8 @@ class CalculatedDataSourcePlugin(object):
                 if value is None:
                     log.warn(
                         "Calculated Performance expression %s references "
-                        "the variable %s which is not in %s" % (
-                            datasource.expression, att, allDatapointsByVarName.keys()))
+                        "the variable %s which is not in %s on the context %s" % (
+                            datasource.expression, att, allDatapointsByVarName.keys(), context))
 
         config['obj_attrs'] = attrs
         config['targetDatapoints'] = targetDataPoints
@@ -275,16 +259,16 @@ class CalculatedDataSourcePlugin(object):
         if expression:
             # We will populate this with perf metrics and pass to eval()
             devdict = createDeviceDictionary(datasource.params['obj_attrs'])
-
             rrdValues = {}
             datapointDict = {}
             gotAllRRDValues = True
 
-            for targetDatasource, targetDatapoint, targetRRA in datasource.params['targetDatapoints']:
+            for targetDatasource, targetDatapoint, targetRRA, rrdtype in datasource.params['targetDatapoints']:
                 try:
                     value = yield rrdcache.getLastValue(targetDatasource,
                                                         targetDatapoint,
                                                         targetRRA,
+                                                        rrdtype,
                                                         datasource.cycletime*5,
                                                         datasource.params['targets'][0])
 
@@ -298,7 +282,7 @@ class CalculatedDataSourcePlugin(object):
                     })
                     logMethod = log.error if debug else log.debug
                     logMethod(msg + "\n%s", ex)
-
+                    log.exception(ex)
                     continue
 
                 # Datapoints can be specified in the following ways:
@@ -446,14 +430,21 @@ class DerivedDataSourceProxyingPlugin(PythonDataSourcePlugin):
         collectedMaps = []
 
         datasourcesByKey = {dsKey(ds): ds for ds in config.datasources}
-        datasourceDependencies = {dsKey(ds): dsTargetKeys(ds) for ds in config.datasources}
+        # if we are able prefetch all the metrics that we can
+        if hasattr(self.rrdcache, "batchFetchMetrics"):
+            datasources = [datasourcesByKey.get(ds) for ds in toposort(config.datasources, datasourcesByKey) if datasourcesByKey.get(ds)]
+            yield self.rrdcache.batchFetchMetrics(datasources)
 
-        for dskey in toposort(datasourceDependencies):
+        startCollectTime = time.time()
+        from collections import defaultdict
+        sourcetypes = defaultdict(int)
+        for dskey in toposort(config.datasources, datasourcesByKey):
             datasource = datasourcesByKey.get(dskey, None)
             if datasource is None or \
-               'datasourceClassName' not in datasource.params or \
-               datasource.params['datasourceClassName'] not in DerivedProxyMap:
+                    'datasourceClassName' not in datasource.params or \
+                    datasource.params['datasourceClassName'] not in DerivedProxyMap:
                 #Not our datasource, it's a dependency from elsewhere
+                #log.warn("not using ds: %s %s %s", dskey, datasource, datasource.params.__dict__)
                 continue
 
             collectionTime = time.time()
@@ -474,17 +465,33 @@ class DerivedDataSourceProxyingPlugin(PythonDataSourcePlugin):
                                           '_'.join((datasource.datasource, p.id)) in resultValues)
 
                     for datapoint in collectedPoints:
-                        myPath = datapoint.rrdPath.rsplit('/', 1)[0]
+                        rrdPath = datapoint.rrdPath.rsplit('/', 1)[0]
+
+                        # Datapoint metadata only exists in Zenoss 5.
+                        if hasattr(datapoint, 'metadata'):
+                            contextUUID = datapoint.metadata["contextUUID"]
+                        else:
+                            contextUUID = rrdPath
+
                         value = (resultValues.get(datapoint.id, None) or
                                  resultValues.get('_'.join((datasource.datasource, datapoint.id))))[0]
                         for rra in ('AVERAGE', 'MIN', 'MAX', 'LAST'):
-                            self.rrdcache.put(datasource.datasource, datapoint.id, rra, myPath, value)
+                            self.rrdcache.put(datasource.datasource, datapoint.id, rra, rrdPath, contextUUID, value)
 
                 #incorporate results returned from the proxied method
                 collectedEvents.extend(dsResult.get('events', []))
                 collectedMaps.extend(dsResult.get('maps', []))
                 collectedValues.setdefault(datasource.component, {})
                 collectedValues[datasource.component].update(resultValues)
+                dsclassname = datasource.params['datasourceClassName']
+                sourcetypes[dsclassname] += 1
+
+        endCollectTime = time.time()
+        timeTaken = endCollectTime - startCollectTime
+        timeLogFn = log.debug
+        if timeTaken > 60.0 :
+            timeLogFn = log.warn
+        timeLogFn("  Took %.1f seconds to collect datasources: %s", timeTaken, sourcetypes)
 
         returnValue({
             'events': collectedEvents,

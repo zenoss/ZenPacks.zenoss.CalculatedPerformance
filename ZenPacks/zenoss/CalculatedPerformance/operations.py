@@ -1,9 +1,9 @@
-# 
+#
 # Copyright (C) Zenoss, Inc. 2014, all rights reserved.
-# 
+#
 # This content is made available according to terms specified in
 # License.zenoss under the directory where your Zenoss product is installed.
-# 
+#
 """
 An aggregation method should return both the datapoint,
 and the value array with any in-place modification.
@@ -85,7 +85,7 @@ avg = amean
 
 
 def median(valuemap):
-    return _median(valuemap.values(), valuemap)
+    return _median(valuemap.values()), valuemap
 
 
 def _deviations(midpointFunc, values):
@@ -131,7 +131,7 @@ def madmax(valuemap, themax):
     """
     See: http://en.wikipedia.org/wiki/Median_absolute_deviation
     """
-    medianDeviations = _absoluteDeviations(_median, map(lambda x: x if x < themax else themax, valuemap.values()))
+    medianDeviations = _absoluteDeviations(_median, map(lambda x: x if x < themax else themax or 0, valuemap.values()))
     return _median(medianDeviations), dict(zip(valuemap.keys(), medianDeviations))
 
 
