@@ -101,7 +101,12 @@ You must create these components at modeling time like any other component. Then
 
 == Changes ==
 
-;2.0.5 - 2014-09-11
+;2.1.0 - 2015-09-16
+* Improve performance by using wildcard metric queries.
+* Fix "CookieAgent" error when used with Zenoss 4.
+* Fix median operation on aggregating datapoints.
+
+;2.0.5 - 2015-02-22
 * Use a requests Session and cache at the class level to reduce authentication load. (ZEN-15835)
 
 ;2.0.4 - 2014-10-08
