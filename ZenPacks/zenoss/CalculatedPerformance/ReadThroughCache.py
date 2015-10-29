@@ -305,6 +305,7 @@ class MetricServiceReadThroughCache(BaseMetricServiceReadThroughCache):
             aggregator=self._aggMapping.get(rra.lower(), rra.lower()),
             rpn='',
             rate=rate,
+            rateOptions=rateOptions_for_rate(rate),
             format='%.2lf',
             tags=dict(contextUUID=[uuid]),
             name='%s' % cachekey
@@ -347,6 +348,7 @@ class WildcardMetricServiceReadThroughCache(BaseMetricServiceReadThroughCache):
             metrics[name]= dict(
                     metric=name,
                     rate=rate,
+                    rateOptions=rateOptions_for_rate(rate),
                     tags=dict(contextUUID=["*"])
             )
 
@@ -389,3 +391,11 @@ def getReadThroughCache():
         # must be 4.x
         log.debug("CalculatedPerformance is using RRDReadThroughCache")
         return RRDReadThroughCache()
+
+
+def rateOptions_for_rate(rate):
+    """Return a rateOptions dict given rate as a boolean."""
+    if rate:
+        return {'counter': True, 'resetThreshold': 1}
+    else:
+        return {}
