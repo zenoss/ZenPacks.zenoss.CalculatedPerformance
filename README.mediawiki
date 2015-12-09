@@ -101,6 +101,10 @@ You must create these components at modeling time like any other component. Then
 
 == Changes ==
 
+;2.2.0 - 2015-11-11
+* Add impact from members to ElementPool. (ZEN-19846)
+* Fix bogus calculations when basis counters reset. (ZEN-20694)
+
 ;2.1.0 - 2015-09-16
 * Improve performance by using wildcard metric queries.
 * Fix "CookieAgent" error when used with Zenoss 4.
