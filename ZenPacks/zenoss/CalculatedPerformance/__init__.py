@@ -45,7 +45,7 @@ class ZenPack(ZenPackBase):
     """
     ZenPack loader that handles custom installation and removal tasks.
     """
-    packZProperties = [('zAggregatorCollectionInterval', 300, 'int')]
+    packZProperties = [('zAggregatorCollectionInterval', 300, 'int'), ('zDatasourceDebugLogging', False, 'boolean')]
 
     def install(self, app):
         super(ZenPack, self).install(app)
