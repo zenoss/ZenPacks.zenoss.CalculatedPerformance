@@ -74,8 +74,6 @@ class ZenPack(ZenPackBase):
     def _buildDeviceRelations(self):
         for d in self.dmd.Devices.getSubDevicesGen():
             d.buildRelations()
-            for c in d.getDeviceComponents():
-                c.buildRelations()
 
 def addAggregatingPool(device, id):
     instance = ElementPool(id)
