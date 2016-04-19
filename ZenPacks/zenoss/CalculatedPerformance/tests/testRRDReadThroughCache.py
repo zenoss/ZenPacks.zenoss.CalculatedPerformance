@@ -31,17 +31,17 @@ class TestRRDReadThroughCache(BaseTestCase):
         cache.put('ds', 'dp', 'rra', 'perf/path', '1', 42.0)
         cache._readLastValue = mockReturnValue(54.11)
         self.assertIn(testKey, cache._cache)
-        self.assertEqual(cache.getLastValue('ds', 'dp', 'rra', "GAUGE", 1, {'rrdpath': 'perf/path', 'uuid': 1}), 42.0)
+        self.assertEqual(cache.getLastValue('ds', 'dp', 'rra', False, 1, {'rrdpath': 'perf/path', 'uuid': 1}), 42.0)
 
     def testGetLastValue(self):
         cache = getReadThroughCache()
         testKey = self._getKey('ds', 'dp', 'rra', 'perf/path', '1')
         cache._readLastValue = mockReturnValue(54.11)
         self.assertNotIn(testKey, cache._cache)
-        self.assertEqual(cache.getLastValue('ds', 'dp', 'rra', "GAUGE", 1, {'rrdpath': 'perf/path', 'uuid': 1}), 54.11)
+        self.assertEqual(cache.getLastValue('ds', 'dp', 'rra', False, 1, {'rrdpath': 'perf/path', 'uuid': 1}), 54.11)
         self.assertIn(testKey, cache._cache)
         cache._readLastValue = mockReturnValue(65.43)
-        self.assertEqual(cache.getLastValue('ds', 'dp', 'rra', "GAUGE", 1, {'rrdpath': 'perf/path', 'uuid': 1}), 54.11)
+        self.assertEqual(cache.getLastValue('ds', 'dp', 'rra', False, 1, {'rrdpath': 'perf/path', 'uuid': 1}), 54.11)
 
     def testGetLastValues(self):
         cache = getReadThroughCache()
@@ -53,15 +53,15 @@ class TestRRDReadThroughCache(BaseTestCase):
         cache._readLastValue = mockReturnValue(54.11)
         for testKey in testKeys:
             self.assertNotIn(testKey, cache._cache)
-        self.assertDictEqual(cache.getLastValues('ds', 'dp', 'rra', "GAUGE", 1, targets)[0],
+        self.assertDictEqual(cache.getLastValues('ds', 'dp', 'rra', False, 1, targets)[0],
                                  {'1': 54.11, '2': 54.11})
         for testKey in testKeys:
             self.assertIn(testKey, cache._cache)
         cache._readLastValue = mockReturnValue(65.43)
-        self.assertDictEqual(cache.getLastValues('ds', 'dp', 'rra', "GAUGE", 1, targets)[0],
+        self.assertDictEqual(cache.getLastValues('ds', 'dp', 'rra', False, 1, targets)[0],
                                  {'1': 54.11, '2': 54.11})
         cache._readLastValue = mockReturnValue(None)
-        self.assertDictEqual(cache.getLastValues('ds', 'dp', 'rra', "GAUGE", 1, targets)[0],
+        self.assertDictEqual(cache.getLastValues('ds', 'dp', 'rra', False, 1, targets)[0],
                                  {'1': 54.11, '2': 54.11})
 
     def testInvalidate(self):
@@ -79,12 +79,12 @@ class TestRRDReadThroughCache(BaseTestCase):
         cache.invalidate()
         self.assertNotIn(testKey, cache._cache)
         cache._readLastValue = mockReturnValue(54.11)
-        self.assertEqual(cache.getLastValue('ds', 'dp', 'rra', "GAUGE", 1, {'rrdpath': 'perf/path', 'uuid': 1}), 54.11)
+        self.assertEqual(cache.getLastValue('ds', 'dp', 'rra', False, 1, {'rrdpath': 'perf/path', 'uuid': 1}), 54.11)
         self.assertIn(testKey, cache._cache)
         cache.invalidate(testKey)
         self.assertNotIn(testKey, cache._cache)
 
-        self.assertEqual(cache.getLastValue('ds', 'dp', 'rra', "GAUGE", 1, {'rrdpath': 'perf/path', 'uuid': 1}), 54.11)
+        self.assertEqual(cache.getLastValue('ds', 'dp', 'rra', False, 1, {'rrdpath': 'perf/path', 'uuid': 1}), 54.11)
         self.assertIn(testKey, cache._cache)
         cache.invalidate()
         self.assertNotIn(testKey, cache._cache)

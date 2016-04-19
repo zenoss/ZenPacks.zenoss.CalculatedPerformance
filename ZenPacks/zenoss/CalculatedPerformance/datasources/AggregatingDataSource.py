@@ -39,6 +39,7 @@ class AggregatingDataSource(PythonDataSource):
     targetDataSource = ''
     targetDataPoint = ''
     targetRRA = 'AVERAGE'
+    targetAsRate = False
     debug = False
 
     _properties = RRDDataSource._properties + (
@@ -46,6 +47,7 @@ class AggregatingDataSource(PythonDataSource):
         {'id': 'targetDataSource', 'type': 'string'},
         {'id': 'targetDataPoint', 'type': 'string'},
         {'id': 'targetRRA', 'type': 'string'},
+        {'id': 'targetAsRate', 'type': 'boolean'},
         {'id': 'debug', 'type': 'boolean', 'mode': 'w'},
     )
 
