@@ -36,6 +36,10 @@ class IAggregatingDataSourceInfo(IRRDDataSourceInfo):
         title=_t(u'RRA'),
         group=_t(u'Target')
     )
+    asRate = schema.Bool(
+        title=_t(u'Rate?'),
+        group=_t(u'Target')
+    )
     debug = schema.Bool(title=_t(u'Verbose Debug Logging'))
 
 
@@ -75,5 +79,9 @@ class ICalculatedPerformanceDataSourceInfo(IRRDDataSourceInfo):
         title=_t(u'Expression'),
         group=_t('Detail'),
         xtype='twocolumntextarea')
+
+    asRate = schema.Bool(
+        title=_t(u'Rate?'),
+        group=_t('Target'))
 
     debug = schema.Bool(title=_t(u'Verbose Debug Logging'))

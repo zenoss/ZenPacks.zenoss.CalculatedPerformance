@@ -35,7 +35,7 @@ class ReadThroughCache(object):
     def _getKey(self, datasource, datapoint, rra, targetValue):
         return '%s/%s_%s_%s' % (targetValue, datasource, datapoint, rra)
 
-    def getLastValues(self, datasource, datapoint, rra='AVERAGE', rrdtype="GAUGE", ago=300, targets=()):
+    def getLastValues(self, datasource, datapoint, rra='AVERAGE', rate=False, ago=300, targets=()):
         """
         Get the last value from the specified rrd for each target.
 
@@ -61,7 +61,7 @@ class ReadThroughCache(object):
         errors = []
         for targetConfig in targets:
             try:
-                valueMap[targetConfig['uuid']] = self.getLastValue(datasource, datapoint, rra, rrdtype, ago,
+                valueMap[targetConfig['uuid']] = self.getLastValue(datasource, datapoint, rra, rate, ago,
                                                                    targetConfig)
             except StandardError as ex:
                 msg = "Failure reading configured datapoint %s_%s on target %s" % \
@@ -69,7 +69,7 @@ class ReadThroughCache(object):
                 errors.append((ex, msg))
         return {k: v for k, v in valueMap.items() if v is not None}, errors
 
-    def getLastValue(self, datasource, datapoint, rra='AVERAGE', rrdtype="GAUGE", ago=300, targetConfig={}):
+    def getLastValue(self, datasource, datapoint, rra='AVERAGE', rate=False, ago=300, targetConfig={}):
         """
 
         @param datasource: target datasource id
@@ -99,7 +99,7 @@ class ReadThroughCache(object):
             log.debug("Using cached value for %s: %s", cachekey, self._cache[cachekey])
             return self._cache[cachekey]
         log.debug("Not Using cached value for %s", cachekey)
-        readValue = self._readLastValue(targetValue, datasource, datapoint, rra, rrdtype, ago, targetConfig)
+        readValue = self._readLastValue(targetValue, datasource, datapoint, rra, rate, ago, targetConfig)
 
         if readValue is not None:
             self._cache[cachekey] = readValue
@@ -135,7 +135,7 @@ class RRDReadThroughCache(ReadThroughCache):
 
         self._performancePath = performancePath
 
-    def _readLastValue(self, targetPath, datasource, datapoint, rra='AVERAGE', rrdtype="GAUGE", ago=300,
+    def _readLastValue(self, targetPath, datasource, datapoint, rra='AVERAGE', rate=False, ago=300,
                        targetConfig={}):
         realPath = self._performancePath(targetPath) + '/%s_%s.rrd' % (datasource, datapoint)
 
@@ -179,7 +179,7 @@ class BaseMetricServiceReadThroughCache(ReadThroughCache):
             'User-Agent': ['Zenoss: ZenPacks.zenoss.CalculatedPerformance'],
         })
 
-    def _readLastValue(self, uuid, datasource, datapoint, rra='AVERAGE', rrdtype="GAUGE", ago=300, targetConfig={}):
+    def _readLastValue(self, uuid, datasource, datapoint, rra='AVERAGE', rate=False, ago=300, targetConfig={}):
         from Products.ZenUtils.metrics import ensure_prefix
 
         metrics = []
@@ -211,7 +211,7 @@ class BaseMetricServiceReadThroughCache(ReadThroughCache):
                     dsPoints.add(dsdpID)
         metrics = {}
         for datasource in datasources:
-            for dsname, datapoint, rra, rrdtype in datasource.params['targetDatapoints']:
+            for dsname, datapoint, rra, rate in datasource.params['targetDatapoints']:
                 for targetConfig in datasource.params['targets']:
                     targetValue = targetConfig.get(self._targetKey, None)
                     uuid = targetValue
@@ -229,7 +229,6 @@ class BaseMetricServiceReadThroughCache(ReadThroughCache):
                     else:
                         deviceId = targetConfig['device']['id']
                     name = ensure_prefix(deviceId, dsname + "_" + datapoint)
-                    rate = rrdtype.lower() in ('counter', 'derive')
                     dsclassname = datasource.params['datasourceClassName']
                     sourcetypes[dsclassname] += 1
                     self._insert_key(metrics, name, rra, rate, uuid, cachekey)

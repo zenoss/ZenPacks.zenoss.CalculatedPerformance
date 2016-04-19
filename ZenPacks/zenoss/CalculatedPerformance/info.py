@@ -33,6 +33,7 @@ class AggregatingDataSourceInfo(RRDDataSourceInfo):
     datasource = ProxyProperty('targetDataSource')
     datapoint = ProxyProperty('targetDataPoint')
     rra = ProxyProperty('targetRRA')
+    asRate = ProxyProperty('targetAsRate')
 
     testable = False
     debug = ProxyProperty('debug')
@@ -46,6 +47,7 @@ class CalculatedPerformanceDataSourceInfo(RRDDataSourceInfo):
 
     description = ProxyProperty('description')
     expression = ProxyProperty('expression')
+    asRate = ProxyProperty('targetAsRate')
     debug = ProxyProperty('debug')
 
     testable = False
