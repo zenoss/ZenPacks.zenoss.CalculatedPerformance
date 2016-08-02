@@ -15,8 +15,9 @@ from cookielib import CookieJar
 from twisted.internet import reactor
 
 try:
-    from twisted.web.client import Agent, CookieAgent, FileBodyProducer, readBody
+    from twisted.web.client import Agent, CookieAgent, FileBodyProducer, readBody, HTTPConnectionPool
     from twisted.web.http_headers import Headers
+    from Products.ZenUtils.MetricServiceRequest import getPool
 except ImportError:
     # Zenoss 4 won't have CookieAgent or FileBodyProducer. This is OK
     # because RRDReadThroughCache doesn't use them.
@@ -25,10 +26,35 @@ except ImportError:
 from twisted.internet.defer import inlineCallbacks
 from Products.ZenCollector.interfaces import IDataService
 from Products.ZenUtils.GlobalConfig import getGlobalConfiguration
+from Products.ZenUtils.Executor import TwistedExecutor
 from ZenPacks.zenoss.CalculatedPerformance.utils import getTargetId
 from zope.component import getUtility
 
 log = logging.getLogger('zen.ReadThroughCache')
+
+size = 20
+cookieJar = CookieJar()
+agent = None
+executor = None
+pool = None
+def getAgent():
+    global agent
+    if agent is None:
+        agent = CookieAgent(Agent(reactor, connectTimeout=30, pool=getPool()), cookieJar)
+    return agent
+
+def getPool():
+    global pool
+    if pool is None:
+        pool = HTTPConnectionPool(reactor)
+        pool.maxPersistentPerHost=size
+    return pool
+
+def getExecutor():
+    global executor
+    if not executor:
+        executor = TwistedExecutor(size)
+    return executor
 
 
 class ReadThroughCache(object):
@@ -158,9 +184,6 @@ class RRDReadThroughCache(ReadThroughCache):
 class BaseMetricServiceReadThroughCache(ReadThroughCache):
     # TODO: refactor this to use Products/ZenUtils/MetricServiceRequest.py
 
-    # use a shared cookie jar so all Metric requests can share the same session
-    cookieJar = CookieJar()
-
     def __init__(self):
         from Products.Zuul.facades.metricfacade import DATE_FORMAT, AGGREGATION_MAPPING
 
@@ -172,7 +195,7 @@ class BaseMetricServiceReadThroughCache(ReadThroughCache):
 
         creds = IAuthorizationTool(None).extractGlobalConfCredentials()
         auth = base64.b64encode('{login}:{password}'.format(**creds))
-        self.agent = CookieAgent(Agent(reactor, connectTimeout=30), self.cookieJar)
+        self.agent = getAgent()
         self._headers2 = Headers({
             'Authorization': ['basic %s' % auth],
             'Content-Type': ['application/json'],
@@ -271,7 +294,9 @@ class BaseMetricServiceReadThroughCache(ReadThroughCache):
         )
         request[self._metrics_key] = metrics
         body = FileBodyProducer(StringIO(json.dumps(request)))
-        d = self.agent.request('POST', self._metric_url, self._headers2, body)
+        def httpCall():
+            return self.agent.request('POST', self._metric_url, self._headers2, body)
+        d = getExecutor().submit(httpCall)
         d.addCallbacks(self.handleMetricResponse, self.onError)
         return d
 
