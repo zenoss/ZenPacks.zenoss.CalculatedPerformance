@@ -101,6 +101,16 @@ You must create these components at modeling time like any other component. Then
 
 == Changes ==
 
+;2.2.1 - 2016-08-02
+* Added zDatasourceDebugLogging property to control debug logging. (ZEN-22318)
+* Reduce install/upgrade time. (ZEN-22318)
+* Add "Rate?" option for both datasource types. (ZEN-22972)
+* Improve performance with HTTP connection pooling in Zenoss 5. (ZEN-23868)
+
+;2.2.0 - 2015-11-11
+* Add impact from members to ElementPool. (ZEN-19846)
+* Fix bogus calculations when basis counters reset. (ZEN-20694)
+
 ;2.1.0 - 2015-09-16
 * Improve performance by using wildcard metric queries.
 * Fix "CookieAgent" error when used with Zenoss 4.

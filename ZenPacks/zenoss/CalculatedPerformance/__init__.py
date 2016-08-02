@@ -45,7 +45,7 @@ class ZenPack(ZenPackBase):
     """
     ZenPack loader that handles custom installation and removal tasks.
     """
-    packZProperties = [('zAggregatorCollectionInterval', 300, 'int')]
+    packZProperties = [('zAggregatorCollectionInterval', 300, 'int'), ('zDatasourceDebugLogging', False, 'boolean')]
 
     def install(self, app):
         super(ZenPack, self).install(app)
@@ -74,8 +74,6 @@ class ZenPack(ZenPackBase):
     def _buildDeviceRelations(self):
         for d in self.dmd.Devices.getSubDevicesGen():
             d.buildRelations()
-            for c in d.getDeviceComponents():
-                c.buildRelations()
 
 def addAggregatingPool(device, id):
     instance = ElementPool(id)
