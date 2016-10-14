@@ -13,6 +13,8 @@ import logging
 from StringIO import StringIO
 from cookielib import CookieJar
 from twisted.internet import reactor
+from twisted.internet.defer import DeferredLock, CancelledError
+from twisted.internet.error import TimeoutError
 
 try:
     from twisted.web.client import Agent, CookieAgent, FileBodyProducer, readBody, HTTPConnectionPool
@@ -33,10 +35,15 @@ from zope.component import getUtility
 log = logging.getLogger('zen.ReadThroughCache')
 
 size = 20
+responseTimeout = 300
 cookieJar = CookieJar()
 agent = None
 executor = None
 pool = None
+
+# global lock to acquire if cookie is stale
+jar_lock = DeferredLock()
+
 def getAgent():
     global agent
     if agent is None:
@@ -56,6 +63,32 @@ def getExecutor():
         executor = TwistedExecutor(size)
     return executor
 
+def add_timeout(deferred, seconds):
+    """Raise TimeoutError on deferred after seconds.
+    Returns original deferred.
+    """
+
+    def handle_timeout():
+        deferred.cancel()
+
+    timeout_d = reactor.callLater(seconds, handle_timeout)
+
+    def handle_result(result):
+        if timeout_d.active():
+            timeout_d.cancel()
+
+        return result
+
+    deferred.addBoth(handle_result)
+
+    def handle_failure(failure):
+        if failure.check(CancelledError):
+            raise TimeoutError(string="timeout after %s seconds" % seconds)
+
+        return failure
+
+    deferred.addErrback(handle_failure)
+    return deferred
 
 class ReadThroughCache(object):
     def _getKey(self, datasource, datapoint, rra, targetValue):
@@ -265,17 +298,50 @@ class BaseMetricServiceReadThroughCache(ReadThroughCache):
     @inlineCallbacks
     def fetchChunks(self, chunkSize, end, start, metrics, sourcetypes):
         log.debug("About to request %s metrics from Central Query, in chunks of %s", len(metrics), chunkSize)
+
+        # check if all cookies in the jar are fresh
+        def _is_cookie_fresh():
+            _is_cookie = False
+            for _cookie in cookieJar:
+                _is_cookie = True
+                log.debug("Cookie:%s, name:%s, value:%s, port:%s, path:%s, expired:%s",
+                        _cookie,
+                        _cookie.name,
+                        _cookie.value,
+                        _cookie.port,
+                        _cookie.path,
+                        _cookie.is_expired())
+                if _cookie.is_expired():
+                    return False
+            if _is_cookie:
+                return True
+            else:
+                return False
+
         startPostTime = time.time()
         for x in range(0, len(metrics) / chunkSize + 1):
             ms = metrics[x * chunkSize:x * chunkSize + chunkSize]
             if not len(ms):
                 log.debug("skipping chunk at x %s", x)
                 continue
+
+            yield jar_lock.acquire()
+            # if cookie is not fresh, we'll hold the lock until cacheSome returns
+            if _is_cookie_fresh():
+                jar_lock.release()
+                _refreshing = False
+            else:
+                cookieJar.clear()
+                _refreshing = True
+
             try:
                 yield self.cacheSome(end, start, ms)
             except Exception as ex:
                 msg = "Failure caching metrics: %s" % (ms)
                 log.error((ex, msg))
+
+            if _refreshing:
+                jar_lock.release()
 
         endPostTime = time.time()
         timeTaken = endPostTime - startPostTime
@@ -296,9 +362,11 @@ class BaseMetricServiceReadThroughCache(ReadThroughCache):
         body = FileBodyProducer(StringIO(json.dumps(request)))
         def httpCall():
             return self.agent.request('POST', self._metric_url, self._headers2, body)
+
         d = getExecutor().submit(httpCall)
         d.addCallbacks(self.handleMetricResponse, self.onError)
-        return d
+
+        return add_timeout(d, responseTimeout)
 
     def onError(self, reason):
         log.warn("Unable to fetch metrics from central query: %s", reason)
