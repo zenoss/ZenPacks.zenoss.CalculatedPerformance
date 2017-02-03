@@ -1,10 +1,13 @@
 #
-# Copyright (C) Zenoss, Inc. 2014, all rights reserved.
+# Copyright (C) Zenoss, Inc. 2014-2017, all rights reserved.
 #
 # This content is made available according to terms specified in
 # License.zenoss under the directory where your Zenoss product is installed.
 #
+
+from collections import defaultdict, deque
 from datetime import datetime, timedelta
+
 import time
 import base64
 import json
@@ -161,8 +164,9 @@ class ReadThroughCache(object):
         readValue = self._readLastValue(targetValue, datasource, datapoint, rra, rate, ago, targetConfig)
 
         if readValue is not None:
-            self._cache[cachekey] = readValue
-            return readValue
+            value = (readValue, int(time.time()),)
+            self._cacheValue(cachekey, value)
+            return self._cache[cachekey]
         else:
             log.debug("Last value for target %s not present for datapoint %s_%s",
                       getTargetId(targetConfig), datasource, datapoint)
@@ -173,7 +177,7 @@ class ReadThroughCache(object):
                 del self._cache[key]
             return
         else:
-            self._cache = {}
+            self._cache = defaultdict(deque)
 
     def put(self, datasource, datapoint, rra, targetPath, targetID, value):
         """
@@ -182,13 +186,13 @@ class ReadThroughCache(object):
         val = targetPath
         if self._targetKey == "uuid":
             val = targetID
-        rrdcachekey = self._getKey(datasource, datapoint, rra, val)
-        self._cache[rrdcachekey] = value
+        cacheKey = self._getKey(datasource, datapoint, rra, val)
+        self._cacheValue(cacheKey, value)
 
 
 class RRDReadThroughCache(ReadThroughCache):
     def __init__(self):
-        self._cache = {}
+        self._cache = defaultdict(deque)
         self._targetKey = 'rrdpath'
         from Products.ZenModel.PerformanceConf import performancePath
 
@@ -222,7 +226,7 @@ class BaseMetricServiceReadThroughCache(ReadThroughCache):
 
         self._datefmt = DATE_FORMAT
         self._aggMapping = AGGREGATION_MAPPING
-        self._cache = {}
+        self._cache = defaultdict(deque)
         self._targetKey = 'uuid'
         from Products.Zuul.interfaces import IAuthorizationTool
 
@@ -252,7 +256,6 @@ class BaseMetricServiceReadThroughCache(ReadThroughCache):
     def batchFetchMetrics(self, datasources):
         log.debug("Batch Fetching metrics from central query")
         from Products.ZenUtils.metrics import ensure_prefix
-        from collections import defaultdict
 
         sourcetypes = defaultdict(int)
 
@@ -380,6 +383,16 @@ class BaseMetricServiceReadThroughCache(ReadThroughCache):
             d.addCallback(self.onError)
         return d
 
+    def _cacheValue(self, cacheKey, value):
+        """This method sets/pops a value to/from the cache."""
+        if cacheKey in self._cache:
+            cachedValue = self._cache[cacheKey]
+            if cachedValue is None and value:
+                self._cache[cacheKey] = deque()
+            elif cachedValue and len(cachedValue) > 1:
+                self._cache[cacheKey].popleft()
+        self._cache[cacheKey].append(value)
+
 
 class MetricServiceReadThroughCache(BaseMetricServiceReadThroughCache):
 
@@ -416,7 +429,10 @@ class MetricServiceReadThroughCache(BaseMetricServiceReadThroughCache):
         log.debug("Success retrieving %s results", len(results))
         for row in results:
             if row.get('datapoints'):
-                self._cache[row['metric']] = row.get('datapoints')[0]['value']
+                value = (
+                    row.get('datapoints')[0]['value'], 
+                    row.get('datapoints')[0]['timestamp'],)
+                self._cacheValue(row['metric'], value)
                 log.debug("cached %s: %s", row['metric'], self._cache[row['metric']])
             else:
                 # put an entry so we don't fetch it again
@@ -458,11 +474,15 @@ class WildcardMetricServiceReadThroughCache(BaseMetricServiceReadThroughCache):
             device = row["tags"]["device"]
             cacheKey = "%s/%s_AVERAGE" % (contextUUID, metricName.replace("%s/"%device, ""))
             if row.get('datapoints'):
-                self._cache[cacheKey] = row.get('datapoints')[0][1]
+                value = row.get('datapoints')[0][1]
+                timestamp = row.get('datapoints')[0][0]
+                value = (value, timestamp,)
+                self._cacheValue(cacheKey, value)
             else:
                 # put an entry so we don't fetch it again
                 self._cache[cacheKey] = None
                 log.debug("unable to cache %s", cacheKey)
+
         return len(results)
 
 

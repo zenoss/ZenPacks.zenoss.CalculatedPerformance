@@ -99,6 +99,10 @@ You must create these components at modeling time like any other component. Then
     def getElements(self):
         return [x for x in self.device().getMonitoredComponents() if random.random() &gt; 0.314159]</pre>
 
+=== Auto Adjustment of Collection Intervals. ===
+
+By default Zenoss tries to auto adjust collection intervals for Calculated Performance and Datapoint Aggregator datasources to show aligned data intervals on the utilization graphs. It determines collection interval of the target datapoints and uses this interval for the aggregated datasource. If you want to disable this feature, you have uncheck "Use Basis Interval" flare for your aggregated datasources. The "Use Basis Interval" property can be found on the aggregated datasource's configuration menu. When "Use Basis Interval" is checked the Minimum Interval and Maximum Interval properties will be used to set a limit to the basis interval. For instance, when the basis interval equals to 40 seconds and the Minimum Interval value is 60 seconds, the Minimum Interval value will be used as the collection interval, the same rule is applicable to the Maximum Interval property. Minimum interval is 1 second.
+
 == Changes ==
 
 ;2.2.1 - 2016-08-02

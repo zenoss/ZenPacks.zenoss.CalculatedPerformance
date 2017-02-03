@@ -1,5 +1,5 @@
 #
-# Copyright (C) Zenoss, Inc. 2014, all rights reserved.
+# Copyright (C) Zenoss, Inc. 2014-2017, all rights reserved.
 #
 # This content is made available according to terms specified in
 # License.zenoss under the directory where your Zenoss product is installed.
@@ -9,7 +9,8 @@ from AccessControl import ClassSecurityInfo
 from Products.ZenModel.RRDDataSource import RRDDataSource
 from Products.ZenModel.ZenossSecurity import ZEN_MANAGE_DMD
 from Products.Zuul.utils import safe_hasattr
-from ZenPacks.zenoss.CalculatedPerformance import operations
+from ZenPacks.zenoss.CalculatedPerformance import (
+    operations, USE_BASIS_INTERVAL, MINIMUM_INTERVAL, MAXIMUM_INTERVAL,)
 from ZenPacks.zenoss.CalculatedPerformance.AggregatingDataPoint import AggregatingDataPoint
 from ZenPacks.zenoss.PythonCollector.datasources.PythonDataSource \
     import PythonDataSource, PythonDataSourcePlugin
@@ -41,6 +42,9 @@ class AggregatingDataSource(PythonDataSource):
     targetRRA = 'AVERAGE'
     targetAsRate = False
     debug = False
+    useBasisInterval = USE_BASIS_INTERVAL
+    minimumInterval = MINIMUM_INTERVAL
+    maximumInterval = MAXIMUM_INTERVAL
 
     _properties = RRDDataSource._properties + (
         {'id': 'targetMethod', 'type': 'string'},
@@ -49,6 +53,9 @@ class AggregatingDataSource(PythonDataSource):
         {'id': 'targetRRA', 'type': 'string'},
         {'id': 'targetAsRate', 'type': 'boolean'},
         {'id': 'debug', 'type': 'boolean', 'mode': 'w'},
+        {'id': 'useBasisInterval', 'type': 'boolean', 'mode': 'w'},
+        {'id': 'minimumInterval', 'type': 'int', 'mode': 'w'},
+        {'id': 'maximumInterval', 'type': 'int', 'mode': 'w'},
     )
 
     security = ClassSecurityInfo()
@@ -82,5 +89,6 @@ class AggregatingDataSource(PythonDataSource):
                 REQUEST['RESPONSE'].redirect(url)
             return self.callZenScreen(REQUEST)
         return dp
+
 
 InitializeClass(AggregatingDataSource)

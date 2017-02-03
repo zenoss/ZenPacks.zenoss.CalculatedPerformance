@@ -1,5 +1,5 @@
 #
-# Copyright (C) Zenoss, Inc. 2014, all rights reserved.
+# Copyright (C) Zenoss, Inc. 2014-2017, all rights reserved.
 #
 # This content is made available according to terms specified in
 # License.zenoss under the directory where your Zenoss product is installed.
@@ -34,9 +34,13 @@ class AggregatingDataSourceInfo(RRDDataSourceInfo):
     datapoint = ProxyProperty('targetDataPoint')
     rra = ProxyProperty('targetRRA')
     asRate = ProxyProperty('targetAsRate')
+    debug = ProxyProperty('debug')
+
+    minimumInterval = ProxyProperty('minimumInterval')
+    useBasisInterval = ProxyProperty('useBasisInterval')
+    maximumInterval = ProxyProperty('maximumInterval')
 
     testable = False
-    debug = ProxyProperty('debug')
 
 
 class CalculatedPerformanceDataSourceInfo(RRDDataSourceInfo):
@@ -49,6 +53,10 @@ class CalculatedPerformanceDataSourceInfo(RRDDataSourceInfo):
     expression = ProxyProperty('expression')
     asRate = ProxyProperty('targetAsRate')
     debug = ProxyProperty('debug')
+
+    minimumInterval = ProxyProperty('minimumInterval')
+    useBasisInterval = ProxyProperty('useBasisInterval')
+    maximumInterval = ProxyProperty('maximumInterval')
 
     testable = False
 

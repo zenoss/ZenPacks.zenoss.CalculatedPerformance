@@ -1,6 +1,6 @@
 ##############################################################################
 #
-# Copyright (C) Zenoss, Inc. 2011, all rights reserved.
+# Copyright (C) Zenoss, Inc. 2011-2017, all rights reserved.
 #
 # This content is made available according to terms specified in
 # License.zenoss under the directory where your Zenoss product is installed.
@@ -25,6 +25,9 @@ from Products.ZenModel.ZenossSecurity import ZEN_CHANGE_DEVICE
 from Products.ZenWidgets import messaging
 from ZenPacks.zenoss.PythonCollector.datasources.PythonDataSource import PythonDataSource
 
+from ZenPacks.zenoss.CalculatedPerformance import (
+    operations, USE_BASIS_INTERVAL, MINIMUM_INTERVAL, MAXIMUM_INTERVAL,)
+
 
 class CalculatedPerformanceDataSource(PythonDataSource):
     ZENPACKID = 'ZenPacks.zenoss.CalculatedPerformance'
@@ -45,13 +48,20 @@ class CalculatedPerformanceDataSource(PythonDataSource):
     usessh = False
     parser = ""
     debug = False
+    useBasisInterval = USE_BASIS_INTERVAL
+    minimumInterval = MINIMUM_INTERVAL
+    maximumInterval = MAXIMUM_INTERVAL
+
     _properties = BasicDataSource._properties + (
         {'id': 'description', 'type': 'string', 'mode': 'w'},
         {'id': 'expression', 'type': 'string', 'mode': 'w'},
         {'id': 'targetAsRate', 'type': 'boolean', 'mode': 'w'},
         {'id': 'cycletime', 'type': 'int', 'mode': 'w'},
         {'id': 'debug', 'type': 'boolean', 'mode': 'w'},
-        )
+        {'id': 'useBasisInterval', 'type': 'boolean', 'mode': 'w'},
+        {'id': 'minimumInterval', 'type': 'int', 'mode': 'w'},
+        {'id': 'maximumInterval', 'type': 'int', 'mode': 'w'},
+    )
 
     security = ClassSecurityInfo()
 
