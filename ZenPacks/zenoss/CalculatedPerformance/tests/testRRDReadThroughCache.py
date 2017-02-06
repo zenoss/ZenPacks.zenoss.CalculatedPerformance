@@ -75,7 +75,7 @@ class TestRRDReadThroughCache(BaseTestCase):
 
         expectedValues = cache.getLastValues('ds', 'dp', 'rra', False, 1, targets)[0]
         self.assertDictEqual(
-            {k,v[0][0] for k,v in expectedValues.itervalues(),}
+            {k: v[0][0] for k, v in expectedValues.iteritems()},
             {'1': 54.11, '2': 54.11})
 
         for testKey in testKeys:
@@ -84,13 +84,13 @@ class TestRRDReadThroughCache(BaseTestCase):
         cache._readLastValue = mockReturnValue(65.43)
         expectedValues = cache.getLastValues('ds', 'dp', 'rra', False, 1, targets)[0]
         self.assertDictEqual(
-            {k,v[0][0] for k,v in expectedValues.itervalues(),}
+            {k: v[0][0] for k, v in expectedValues.iteritems()},
             {'1': 54.11, '2': 54.11})
 
         cache._readLastValue = mockReturnValue(None)
         expectedValues = cache.getLastValues('ds', 'dp', 'rra', False, 1, targets)[0]
         self.assertDictEqual(
-            {k,v[0][0] for k,v in expectedValues.itervalues(),}
+            {k: v[0][0] for k, v in expectedValues.iteritems()},
             {'1': 54.11, '2': 54.11})
 
     def testInvalidate(self):
