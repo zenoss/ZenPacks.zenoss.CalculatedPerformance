@@ -101,6 +101,8 @@ You must create these components at modeling time like any other component. Then
 
 == Changes ==
 
+;2.3.1
+
 ;2.3.0 - 2016-11-17
 * Reduce impact on zauth with better cookie usage. (ZEN-24527)
 
