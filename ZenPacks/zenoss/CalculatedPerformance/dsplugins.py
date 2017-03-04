@@ -7,6 +7,7 @@
 from itertools import chain, izip
 import logging
 import time
+import traceback
 from pprint import pformat
 from twisted.internet.defer import inlineCallbacks, returnValue
 from Products import Zuul
@@ -149,23 +150,25 @@ class AggregatingDataSourcePlugin(object):
                     datapoint.operation,
                     handleArguments(datasource.params['targetArgValues'][0], datapoint.arguments),
                     targetValues)
-                if debug:
-                    log.debug("Aggregate value %s calculated for datapoint %s_%s on %s:%s",
-                              str(aggregate), datasource.datasource, datapoint.id,
-                              datasource.device, datasource.component)
-            except Exception as ex:
-                msg = "Error calculating aggregation for %s_%s: %s" % (
+            except AggregationError as e:
+                prefix = "aggregation error for {}_{}".format(
                     targetDatasource,
-                    targetDatapoint,
-                    ex.message
-                )
+                    targetDatapoint)
+
                 collectedEvents.append({
-                    'summary': msg,
-                    'eventKey': 'aggregatingDataSourcePlugin_result',
                     'severity': ZenEventClasses.Error,
-                })
-                log.exception(msg + "\n%s", ex)
+                    'summary': "{}: {}".format(prefix, e.summary),
+                    'message': "{}: {}".format(prefix, e.message),
+                    'eventClass': datasource.eventClass,
+                    })
+
                 continue
+
+            if debug:
+                log.debug(
+                    "Aggregate value %s calculated for datapoint %s_%s on %s:%s",
+                    str(aggregate), datasource.datasource, datapoint.id,
+                    datasource.device, datasource.component)
 
             #stash values for the threshold to put in event details
             threshold_cache[getThresholdCacheKey(datasource, datapoint)] = adjustedTargetValues
@@ -190,12 +193,34 @@ class AggregatingDataSourcePlugin(object):
         returnValue((values, errors))
 
     def performAggregation(self, operationId, arguments, targetValues):
-        try:
-            result, targetValues = getattr(operations, operationId)(targetValues, *arguments)
-        except AttributeError as ex:
-            raise Exception("Invalid aggregate operation specified: '%s'" % operationId, ex)
+        if not operationId:
+            raise AggregationError(
+                summary="no operation set",
+                message="no operation set - set one of {}".format(
+                    ", ".join(operations.VALID_OPERATIONS)))
 
-        return result, targetValues
+        operationId = operationId.lower()
+        if operationId not in operations.VALID_OPERATIONS:
+            raise AggregationError(
+                summary="{} is an invalid operation".format(operationId),
+                message="{} is an invalid operation - set one of {}".format(
+                    operationId,
+                    ", ".join(operations.VALID_OPERATIONS)))
+
+        try:
+            return getattr(operations, operationId)(targetValues, *arguments)
+        except Exception as e:
+            raise AggregationError(
+                summary=str(e),
+                message=traceback.format_exc())
+
+
+class AggregationError(Exception):
+    def __init__(self, summary, message=None):
+        Exception.__init__(self, summary)
+        self.summary = summary
+        self.message = message or summary
+
 
 class CalculatedDataSourcePlugin(object):
 

@@ -101,6 +101,13 @@ You must create these components at modeling time like any other component. Then
 
 == Changes ==
 
+;2.3.1 - 2017-03-04
+* Clarify event when aggregation operation is blank or invalid. (ZPS-71)
+* Change default aggregation operation from blank to "sum". (ZPS-71)
+
+;2.3.0 - 2016-11-17
+* Reduce impact on zauth with better cookie usage. (ZEN-24527)
+
 ;2.2.1 - 2016-08-02
 * Added zDatasourceDebugLogging property to control debug logging. (ZEN-22318)
 * Reduce install/upgrade time. (ZEN-22318)
