@@ -1,0 +1,331 @@
+<style>
+div.thumbnail {
+    clear: right;
+    float: right;
+    margin: 0 0 10px 10px;
+    padding: 0px;
+    width: 320px;
+    font-size: small;
+    font-style: italic;
+}
+
+br.clear {
+    clear: right;
+}
+
+dd {
+    font-size: smaller;
+}
+</style>
+
+<h1 id="title">Calculated Performance ZenPack</h1>
+
+<h2 id="releases">Releases</h2>
+<dl id="release-2.3.1">
+    <dt>Version 2.3.1 <a class="external" href="http://wiki.zenoss.org/download/zenpacks/ZenPacks.zenoss.CalculatedPerformance/2.3.1/ZenPacks.zenoss.CalculatedPerformance-2.3.1.egg"></a></dt>
+    <dd>Released: 2017-03-04</dd>
+    <dd>Compatible with Zenoss 4.2 - 5.1</dd>
+    <dd>Requires:
+        <a href="/product/zenpacks/pythoncollector">PythonCollector ZenPack (v1.3.0 or later)</a>
+    </dd>
+</dl>
+
+<dl id="release-2.2.1">
+    <dt>Version 2.2.1 <a class="external" href="http://wiki.zenoss.org/download/zenpacks/ZenPacks.zenoss.CalculatedPerformance/2.2.1/ZenPacks.zenoss.CalculatedPerformance-2.2.1.egg"></a></dt>
+    <dd>Released: 2016-08-02</dd>
+    <dd>Compatible with Zenoss 4.2 - 5.1</dd>
+    <dd>Requires:
+        <a href="/product/zenpacks/pythoncollector">PythonCollector ZenPack (v1.3.0 or later)</a>
+    </dd>
+</dl>
+
+<dl id="release-2.1.0">
+    <dt>Version 2.1.0 <a class="external" href="http://wiki.zenoss.org/download/zenpacks/ZenPacks.zenoss.CalculatedPerformance/2.1.0/ZenPacks.zenoss.CalculatedPerformance-2.1.0.egg"></a></dt>
+    <dd>Released: 2015-09-16</dd>
+    <dd>Compatible with Zenoss 4.2 - 5.0</dd>
+    <dd>Requires:
+        <a href="/product/zenpacks/pythoncollector">PythonCollector ZenPack (v1.3.0 or later)</a>
+    </dd>
+</dl>
+
+<dl id="release-2.0.4">
+    <dt>Version 2.0.4 <a class="external" href="http://wiki.zenoss.org/download/zenpacks/ZenPacks.zenoss.CalculatedPerformance/2.0.4/ZenPacks.zenoss.CalculatedPerformance-2.0.4.egg"></a></dt>
+    <dd>Released: 2014-10-08</dd>
+    <dd>Compatible with Zenoss 4.2</dd>
+    <dd>Requires:
+        <a href="/product/zenpacks/pythoncollector">PythonCollector ZenPack (v1.3.0 or later)</a>
+    </dd>
+</dl>
+
+<dl id="release-1.0.9">
+    <dt>Version 1.0.9 <a class="external" href="http://wiki.zenoss.org/download/zenpacks/ZenPacks.zenoss.CalculatedPerformance/1.0.9/ZenPacks.zenoss.CalculatedPerformance-1.0.9.egg"></a></dt>
+    <dd>Released: 2014-03-18</dd>
+    <dd>Compatible with Zenoss 3.1 - 4.2</dd>
+    <dd>No additional requirements.</dd>
+</dl>
+
+<h2 id="contents">Contents</h2>
+<ol>
+    <li><a href="#background">Background</a></li>
+    <li><a href="#usage">Usage</a>
+        <ol>
+            <li><a href="#calculated-performance-datasource">Calculated Performance Datasource</a></li>
+            <li><a href="#datapoint-aggregator-datasource">Datapoint Aggregator Datasource</a></li>
+        </ol>
+    </li>
+    <li><a href="#caveats">Caveats</a></li>
+    <li><a href="#changes">Changes</a></li>
+</ol>
+
+<h2 id="background">Background</h2>
+<p>The Calculated Performance ZenPack provides a few capabilities for creating derived datapoints. A derived datapoint's value is determined based on the values of other datapoints or attributes, as opposed to being collected directly from a target device or component. There are two different types of derived datapoint provided: <i>Calculated Performance</i> and <i>Datapoint Aggregator</i>. Both of these types are collected within the zenpython daemon provided by PythonCollector, so no new daemons are required.</p>
+
+<div class="thumbnail"><a href="/sites/default/files/zenpack/Calculated Performance/Calculation_basic.png.png"><img src="/sites/default/files/zenpack/Calculated Performance/Calculation_basic.png.png"></a></div>
+
+<p>Calculated Performance datapoints are functionally the same as in v1.x. By configuring a Python expression, you can combine any datapoints or model attributes from the target device or component. The capabilities of the Python expression have been expanded in v2.0.</p>
+
+<br class="clear">
+
+<div class="thumbnail"><a href="/sites/default/files/zenpack/Calculated Performance/Aggregation_basic_diagram.png.png"><img src="/sites/default/files/zenpack/Calculated Performance/Aggregation_basic_diagram.png.png"></a></div>
+
+<p>Datapoint Aggregator datapoints are a new capability in v2.0. They perform a point-in-time aggregation of any other datapoint on a set of target elements. The target elements in question can be any elements in the Zenoss system that have datapoints associated with them. This is not limited by type, Device Class, or containing device, though it is limited to elements collected on the same physical collector as the aggregating element. An aggregation can be any n-ary commutative mathematical operation, such as sum, maximum, or standard deviation. Most aggregations give results in the same units as the input.</p>
+
+<br class="clear">
+
+<h2 id="usage">Usage</h2>
+
+<h3 id="calculated-performance-datasource">Calculated Performance Datasource</h3>
+<p>A Calculated Performance datasource contains a Python expression whose result will be stored as the value of the single datapoint. The expression can reference any other datapoint or model attribute on the device or component. For example, the expression <code>(hw.totalMemory – memAvailReal) / hw.totalMemory</code> uses the totalMemory attribute modeled from the device and the datapoint memAvailReal to calculate a percentage used. Dotted-name model attributes can reference functions or relationships as long as they take no arguments.</p>
+
+<p>The expression can reference datapoints using any of the following syntaxes. Replace <i>dsname</i> with the name of your datasource and <i>dpname</i> with the name of your datapoint.</p>
+
+<ol>
+    <li>
+        <code>dpname</code>:
+        This option is the simplest if you know that your datapoint name is unique for the device or component to which it's bound, and the datapoint name is a valid Python variable name (i.e. it contains no hyphens.)
+    </li>
+    <li>
+        <code>dsname_dpname</code>:
+        This option should be used if there's a chance that your datapoint name is not unique for the device or component. Using the datasource name's then an underscore as a prefix guarantees uniqueness. This option requires that both the datasource and datapoint name be valid Python variables names. Support for this syntax was added in version 1.0.7.
+    </li>
+    <li>
+        <code>datapoint['dpname']</code>:
+        This option can be used if the datapoint's name is not a valid Python variable name and the datapoint is unique for the device or component to which it's bound. Support for this syntax was added in version 2.0.3.
+    </li>
+    <li>
+        <code>datapoint['dsname_dpname']</code>:
+        This is the most verbose, but safest option. It can be used when the datapoint name is not unique, and either the datasource or datapoint name is not a valid Python variables name. Support for this syntax was added in version 2.0.3.
+    </li>
+</ol>
+
+<p>If there are model attributes and datapoints that have a name conflict, the datapoint's value will be used. To disambiguate, you can use <i>here.attribute</i> to specify a model attribute, and the <i>dsname_dpname</i> name to specify a datapoint.</p>
+
+<p>In v2.0, the capabilities of the expression have been expanded. Any <i>eval</i>-able Python code can be used, including control structures and any built-in functions, as long as it returns a single numeric value. This means that any Python keyword (See: [[https://docs.python.org/2/library/keyword.html##keyword.kwlist|keyword.kwlist]]) and any Python builtin (See: [https://docs.python.org/2/library/functions.html builtins]) are reserved words that cannot be used as attribute or datapoint names. If a model attribute or datapoint has a name conflict with a reserved identifier, the <i>here.attribute</i> or <i>dsname_dpname</i> syntax will resolve the issue.</p>
+
+<p>In addition, the expression has access to a few provided utility functions:</p>
+
+<ul>
+    <li>
+        <code>avg(dpList)</code>:
+        Computes the average value of a list of items, excluding any None values.
+    </li>
+    <li>
+        <code>pct(numeratorList, denominatorList)</code>:
+        Computes a percentage of sums of the numerator list and the denominator list. None values are assumed to be zero, and if the denominator is zero the returned value is zero.
+    </li>
+</ul>
+
+<h3 id="datapoint-aggregator-datasource">Datapoint Aggregator Datasource</h3>
+<p>A Datapoint Aggregator datasource is a datasource like any other: it resides in a template, which will be bound to a device or component that we will attempt to collect against. The aggregating datasource has two important pieces of configuration: the target elements to get data from, and the target datapoint on those elements.</p>
+
+<p>The elements to collect from are controlled by the configured Target Method name. This can be any method or relationship present on the element type to which the template will be bound, and must require no arguments. This method must return an iterable of all elements against which we will collect. For example, for an aggregate datasource on a device, we could collect from all of its components by setting this field to <i>getMonitoredComponents</i> or from all of its interfaces by using <i>os.interfaces</i>. By default, the method is <i>getElements</i>, which is expected to be used on a custom ElementPool component. See: <a href="#implementing-a-custom-elementpool-component">Implementing a Custom ElementPool Component</a>.</p>
+
+<p>The datapoint to collect from each element is specified by the Datasource, Datapoint, and RRA fields. As expected, this will collect the value from dsname_dpname:RRA on each target element before aggregating the set of values.</p>
+
+<p>A datapoint on a Datapoint Aggregator type datasource provides the configuration of the aggregation operation to perform on the set of collected values. Multiple such datapoints can be configured on a single datasource to perform several aggregations on the same set of data. The 'Operation' field must be one of the available operations provided by the ZenPack. Some operations may take additional arguments, which should be a string of comma-separated values in the 'Arguments' field.</p>
+
+<h4 id="available-aggregation-operations">Available Aggregation Operations</h4>
+<p>The following aggregation operations are available (aliases included). Operations that result in different units than those submitted are noted.</p>
+
+<ul>
+    <li>
+        <i>count</i>:
+        The number of elements collected. Not unit-consistent.
+    </li>
+    <li>
+        <i>sum</i>:
+        The sum of all elements collected.
+    </li>
+    <li>
+        <i>max</i>:
+        The maximum of all elements collected.
+    </li>
+    <li>
+        <i>min</i>:
+        The minimum of all elements collected.
+    </li>
+    <li>
+        <i>amean</i> (<i>avg</i>):
+        The <a href="http://en.wikipedia.org/wiki/Arithmetic_mean" target="_blank">arithmetic mean or average</a> of all elements collected.
+    </li>
+    <li>
+        <i>median</i>:
+        The <a href="http://en.wikipedia.org/wiki/Median" target="_blank">median</a> of all elements collected.</li>
+    <li><i>stddev</i> (<i>std</i>): The <a href="http://en.wikipedia.org/wiki/Standard_deviation" target="_blank">standard deviation</a> of all elements collected.
+    </li>
+    <li>
+        <i>var</i>:
+        The <a href="http://en.wikipedia.org/wiki/Variance" target="_blank">variance</a> of all elements collected. Not unit-consistent.
+    </li>
+    <li>
+        <i>mad</i>:
+        The <a href="http://en.wikipedia.org/wiki/Median_absolute_deviation" target="_blank">median absolute deviation</a> of all elements collected.
+    </li>
+    <li>
+        <i>percentile</i>:
+        Takes an additional argument <i>n</i> (0-100). Returns the <a href="http://en.wikipedia.org/wiki/Percentile" target="_blank">nth percentile</a> value from the set of target datapoints.
+    </li>
+</ul>
+
+<h4 id="thresholding-on-aggregate-datapoints-additional-event-detail">Thresholding on Aggregate Datapoints: Additional Event Detail</h4>
+<p>When a MinMax threshold is violated on an aggregate datapoint, an additional event detail is added to the generated event. The <i>violator</i> detail of the event will contain a set of (uid, value) tuples for each target element whose value is above the threshold. For example, if the median operation is applied to [3,3,5,9,11] and has a maximum threshold of 4, the elements corresponding to the 5, 9, and 11 values would appear in the <i>violator</i> detail.</p>
+
+<p>The value given in the <i>violator</i> tuple will correspond to the aggregate operation requested: the <i>std</i> and <i>mad</i> operations will provide each element's deviation as its corresponding value, and the <i>var</i> operation will provide the square of each element's deviation. All other aggregations will use the value of the target datapoint as collected.</p>
+
+<h4 id="best-practices-for-derived-datapoints-using-topological-sort">Best Practices for Derived Datapoints: Using Topological Sort</h4>
+
+<div class="thumbnail"><a href="/sites/default/files/zenpack/Calculated Performance/Aggregation_delay_diagram.png.png"><img src="/sites/default/files/zenpack/Calculated Performance/Aggregation_delay_diagram.png.png"></a></div>
+
+<p>As mentioned above, both Calculated Performance and Datapoint Aggregator datasources incur a 1-collection cycle delay when collecting. This problem compounds when both are in play. Each time you calculate or aggregate a datapoint, a 1-cycle delay is added. In this example, some aggregations are performed, then a calculation, then a final aggregation. Each step incurs a 1-cycle delay, resulting in data that is 4 cycles old by the time the final aggregation is stored.</p>
+
+<br class="clear">
+
+<div class="thumbnail"><a href="/sites/default/files/zenpack/Calculated Performance/Aggregation_delay_mitigated.png.png"><img src="/sites/default/files/zenpack/Calculated Performance/Aggregation_delay_mitigated.png.png"></a></div>
+
+<p>However, not all compound datapoints necessarily incur a delay. If the derived datapoints for the Final Aggregator, Calculated Point, Super Aggregator, and both Aggregating Entities are set to the same cycle time, and all of these datasources are within a single device's context (i.e., the device itself or a component of that device), we will perform a <a href="http://en.wikipedia.org/wiki/Topological_sorting" target="_blank">topological sort</a> on the datapoint dependency graph to attempt to collect them so that all three values are available within one collection cycle. This sorting requires that there be no cyclic dependencies between datapoints.</p>
+
+<br class="clear">
+
+<h4 id="implementing-a-custom-elementpool-component">Implementing a Custom ElementPool Component</h4>
+<p>There are many scenarios for using an aggregate datapoint where it makes no sense to put the aggregate datapoint on an existing device or component. For example, an aggregate datapoint may want to calculate across disparate devices and components. For this situation, we provide a generic <i>ElementPool</i> component. The base <i>ElementPool</i> stores its members as a list of UUIDs of device/components to target, and implements the <i>getElements()</i> method that will return the appropriate list.</p>
+
+<p>To implement your own specific type of component with pool functionality, inherit from <i>ElementPool</i> and implement the <i>getMembers()</i> method as desired. Your component need not use the internal member list, or may store other values in the list, as long as the <i>getMembers()</i> method returns the correct items. Then, configure your aggregate datapoints to target the <i>getMembers</i> function (this is the default).</p>
+
+<p>You must create these components at modeling time like any other component. Then the configured datapoints will be collected.</p>
+
+<pre>
+class RandomContentsElementPool(ElementPool):
+    portal_type = meta_type = 'RandomContentsElementPool'
+
+    def getElements(self):
+        return [x for x in self.device().getMonitoredComponents() if random.random() &gt; 0.314159]
+</pre>
+
+<h2 id="caveats">Caveats</h2>
+<p>All derived datapoints rely on reading previously collected target datapoints from the performance data store. As such, the calculation of the derived value will be delayed by as much as an entire collection cycle. In general, derived datapoints should be considered to incur a 1-cycle delay for each aggregation or calculation step. In practice, we can often compute an entire tree of aggregation and calculation steps in the same collection cycle. See: <a href="#best-practices-for-derived-datapoints-using-topological-sort">Best Practices for Derived Datapoints: Using Topological Sort</a>.</p>
+
+Derived datapoints are only based on the most recent available data from target datapoints. This is limited to data up to 5*cycleTime seconds in the past. If a target datapoint does not exist on the target element, or has not been collected in the recent past, that element will be excluded from the calculation. This may mean that fewer datapoints than desired are used in the calculation (for aggregate datapoints), or that the overall result cannot be calculated at all. An event will be sent when this occurs.
+
+<p><strong>Zenoss 4 Note</strong>: Performance data is stored locally on the collector. So only data from devices and components on the same collector can be aggregated. This is not a limitation in Zenoss 5.</p>
+
+<h2 id="changes">Changes</h2>
+
+<h4 id="changes-2.3.1">2.3.1 - 2017-03-04</h4>
+<ul>
+    <li>Clarify event when aggregation operation is blank or invalid. (ZPS-71)</li>
+    <li>Change default aggregation operation from blank to "sum". (ZPS-71)</li>
+</ul>
+
+<h4 id="changes-2.3.0">2.3.0 - 2016-11-17</h4>
+<ul>
+    <li>Reduce impact on zauth with better cookie usage. (ZEN-24527)</li>
+</ul>
+
+<h4 id="changes-2.2.1">2.2.1 - 2016-08-02</h4>
+<ul>
+    <li>Added zDatasourceDebugLogging property to control debug logging. (ZEN-22318)</li>
+    <li>Reduce install/upgrade time. (ZEN-22318)</li>
+    <li>Add "Rate?" option for both datasource types. (ZEN-22972)</li>
+    <li>Improve performance with HTTP connection pooling in Zenoss 5. (ZEN-23868)</li>
+</ul>
+
+<h4 id="changes-2.2.0">2.2.0 - 2015-11-11</h4>
+<ul>
+    <li>Add impact from members to ElementPool. (ZEN-19846)</li>
+    <li>Fix bogus calculations when basis counters reset. (ZEN-20694)</li>
+</ul>
+
+<h4 id="changes-2.1.0">2.1.0 - 2015-09-16</h4>
+<ul>
+    <li>Improve performance by using wildcard metric queries.</li>
+    <li>Fix "CookieAgent" error when used with Zenoss 4.</li>
+    <li>Fix median operation on aggregating datapoints.</li>
+</ul>
+
+<h4 id="changes-2.0.5">2.0.5 - 2015-02-22</h4>
+<ul>
+    <li>Use a requests Session and cache at the class level to reduce authentication load. (ZEN-15835)</li>
+</ul>
+
+<h4 id="changes-2.0.4">2.0.4 - 2014-10-08</h4>
+<ul>
+    <li>Descriptions added to aggregating datasources.</li>
+    <li>Add zDatasourceDebugLogging property to debug calculated/aggregated datasources on a single device.</li>
+    <li>Some defensive improvements with nice error messages.</li>
+</ul>
+
+<h4 id="changes-2.0.3">2.0.3 - 2014-09-11</h4>
+<ul>
+    <li>Add new datapoint['dpname'] expression syntax for hyphenated datapoint names. (ZEN-12489)</li>
+</ul>
+
+<h4 id="changes-2.0.2">2.0.2 - 2014-07-14</h4>
+<ul>
+    <li>Fix ZEN-11832: Hub will now at least send 'targets' and 'expression' when things are wrong. Collection method now will allow some missing things from the params dict.</li>
+    <li>Fix misc issues causing NaNs to show up in graphs.</li>
+</ul>
+
+<h4 id="changes-2.0.1">2.0.1 - 2014-05-20</h4>
+<ul>
+    <li>Ability to concatenate iterables in expressions and methods</li>
+    <li>New 'madmax' aggregate operation, for Median Absolute Deviation calculations on values restricted to a maximum.</li>
+    <li>Fix ZEN-11235: zen.CalculatingPlugin has many failures of unsupported operand type</li>
+    <li>Fix ZEN-11278: Builtins misrecognized in expressions</li>
+    <li>Fix ZEN-11428: CalculatedPerformance 2.0.0 error starting daemons on v411</li>
+    <li>Fix ZEN-11432: exceptions.UnboundLocalError in zenpython.log</li>
+    <li>Fix ZEN-11492: Missing some datasource properties</li>
+    <li>Fix ZEN-11580: CalculatedPerformance 2.0.0 has Dependency on PythonCollector>1.3.0</li>
+</ul>
+
+<h4 id="changes-2.0.0">2.0.0 - 2014-04-07</h4>
+<ul>
+    <li>Add aggregating datapoint capabilities.</li>
+    <li>Add ElementPool components for aggregations.</li>
+    <li>Rewrite collection to use PythonCollector.</li>
+</ul>
+
+<h4 id="changes-1.0.9">1.0.9 - 2014-03-18</h4>
+<ul>
+    <li>Support device properties in expressions. (ZEN-10648)</li>
+    <li>Prevent failure when one expression contains an error. (ZEN-10649)</li>
+</ul>
+
+<h4 id="changes-1.0.8">1.0.8 - 2014-01-06</h4>
+<ul>
+    <li>Stop defaulting missing datapoints to 0. (ZEN-9610)</li>
+</ul>
+
+<h4 id="changes-1.0.7">1.0.7 - 2013-07-15</h4>
+<ul>
+    <li>Allow short name (<i>dpname</i>) or long name (<i>dsname_dpname</i>) in calculations.</li>
+</ul>
+
+<h4 id="changes-1.0.6">1.0.6 - 2013-06-19</h4>
+<ul>
+    <li>Remove broken 'Test' button from datasource dialog.</li>
+</ul>
+
+<h4 id="changes-1.0.5">1.0.5 - 2013-04-03</h4>
+<ul>
+    <li>Initial open source release.</li>
+</ul>

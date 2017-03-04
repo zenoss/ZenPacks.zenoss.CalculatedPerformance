@@ -17,7 +17,7 @@ class AggregatingDataPoint(RRDDataPoint):
     aggregations on other datapoints.
     """
 
-    operation = ''
+    operation = 'sum'
     arguments = ''
 
     # Meta-Data: persistent property definitions.
