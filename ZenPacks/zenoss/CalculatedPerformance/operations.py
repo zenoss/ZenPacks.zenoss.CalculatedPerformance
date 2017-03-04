@@ -141,3 +141,20 @@ def percentile(valuemap, n):
     """
     rank = _nthPercentileRank(int(n), len(valuemap))
     return sorted(valuemap.values())[rank], valuemap
+
+
+VALID_OPERATIONS = [
+    'count',
+    'sum',
+    'max',
+    'min',
+    'amean',
+    'avg',
+    'median',
+    'stddev',
+    'std',
+    'var',
+    'mad',
+    'madmax',
+    'percentile',
+    ]
