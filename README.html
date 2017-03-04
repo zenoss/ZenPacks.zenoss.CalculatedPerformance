@@ -22,7 +22,7 @@ dd {
 
 <h2 id="releases">Releases</h2>
 <dl id="release-2.3.1">
-    <dt>Version 2.3.1 <a class="external" href="http://wiki.zenoss.org/download/zenpacks/ZenPacks.zenoss.CalculatedPerformance/2.3.1/ZenPacks.zenoss.CalculatedPerformance-2.3.1.egg"></a></dt>
+    <dt>Version 2.3.1 <a class="external" href="http://wiki.zenoss.org/download/zenpacks/ZenPacks.zenoss.CalculatedPerformance/2.3.1/ZenPacks.zenoss.CalculatedPerformance-2.3.1.egg">Download</a></dt>
     <dd>Released: 2017-03-04</dd>
     <dd>Compatible with Zenoss 4.2 - 5.1</dd>
     <dd>Requires:
@@ -31,7 +31,7 @@ dd {
 </dl>
 
 <dl id="release-2.2.1">
-    <dt>Version 2.2.1 <a class="external" href="http://wiki.zenoss.org/download/zenpacks/ZenPacks.zenoss.CalculatedPerformance/2.2.1/ZenPacks.zenoss.CalculatedPerformance-2.2.1.egg"></a></dt>
+    <dt>Version 2.2.1 <a class="external" href="http://wiki.zenoss.org/download/zenpacks/ZenPacks.zenoss.CalculatedPerformance/2.2.1/ZenPacks.zenoss.CalculatedPerformance-2.2.1.egg">Download</a></dt>
     <dd>Released: 2016-08-02</dd>
     <dd>Compatible with Zenoss 4.2 - 5.1</dd>
     <dd>Requires:
@@ -40,7 +40,7 @@ dd {
 </dl>
 
 <dl id="release-2.1.0">
-    <dt>Version 2.1.0 <a class="external" href="http://wiki.zenoss.org/download/zenpacks/ZenPacks.zenoss.CalculatedPerformance/2.1.0/ZenPacks.zenoss.CalculatedPerformance-2.1.0.egg"></a></dt>
+    <dt>Version 2.1.0 <a class="external" href="http://wiki.zenoss.org/download/zenpacks/ZenPacks.zenoss.CalculatedPerformance/2.1.0/ZenPacks.zenoss.CalculatedPerformance-2.1.0.egg">Download</a></dt>
     <dd>Released: 2015-09-16</dd>
     <dd>Compatible with Zenoss 4.2 - 5.0</dd>
     <dd>Requires:
@@ -49,7 +49,7 @@ dd {
 </dl>
 
 <dl id="release-2.0.4">
-    <dt>Version 2.0.4 <a class="external" href="http://wiki.zenoss.org/download/zenpacks/ZenPacks.zenoss.CalculatedPerformance/2.0.4/ZenPacks.zenoss.CalculatedPerformance-2.0.4.egg"></a></dt>
+    <dt>Version 2.0.4 <a class="external" href="http://wiki.zenoss.org/download/zenpacks/ZenPacks.zenoss.CalculatedPerformance/2.0.4/ZenPacks.zenoss.CalculatedPerformance-2.0.4.egg">Download</a></dt>
     <dd>Released: 2014-10-08</dd>
     <dd>Compatible with Zenoss 4.2</dd>
     <dd>Requires:
@@ -58,7 +58,7 @@ dd {
 </dl>
 
 <dl id="release-1.0.9">
-    <dt>Version 1.0.9 <a class="external" href="http://wiki.zenoss.org/download/zenpacks/ZenPacks.zenoss.CalculatedPerformance/1.0.9/ZenPacks.zenoss.CalculatedPerformance-1.0.9.egg"></a></dt>
+    <dt>Version 1.0.9 <a class="external" href="http://wiki.zenoss.org/download/zenpacks/ZenPacks.zenoss.CalculatedPerformance/1.0.9/ZenPacks.zenoss.CalculatedPerformance-1.0.9.egg">Download</a></dt>
     <dd>Released: 2014-03-18</dd>
     <dd>Compatible with Zenoss 3.1 - 4.2</dd>
     <dd>No additional requirements.</dd>
@@ -80,13 +80,13 @@ dd {
 <h2 id="background">Background</h2>
 <p>The Calculated Performance ZenPack provides a few capabilities for creating derived datapoints. A derived datapoint's value is determined based on the values of other datapoints or attributes, as opposed to being collected directly from a target device or component. There are two different types of derived datapoint provided: <i>Calculated Performance</i> and <i>Datapoint Aggregator</i>. Both of these types are collected within the zenpython daemon provided by PythonCollector, so no new daemons are required.</p>
 
-<div class="thumbnail"><a href="/sites/default/files/zenpack/Calculated Performance/Calculation_basic.png.png"><img src="/sites/default/files/zenpack/Calculated Performance/Calculation_basic.png.png"></a></div>
+<div class="thumbnail"><a href="/sites/default/files/zenpack/Calculated Performance/Calculation_basic.png"><img src="/sites/default/files/zenpack/Calculated Performance/Calculation_basic.png"></a></div>
 
 <p>Calculated Performance datapoints are functionally the same as in v1.x. By configuring a Python expression, you can combine any datapoints or model attributes from the target device or component. The capabilities of the Python expression have been expanded in v2.0.</p>
 
 <br class="clear">
 
-<div class="thumbnail"><a href="/sites/default/files/zenpack/Calculated Performance/Aggregation_basic_diagram.png.png"><img src="/sites/default/files/zenpack/Calculated Performance/Aggregation_basic_diagram.png.png"></a></div>
+<div class="thumbnail"><a href="/sites/default/files/zenpack/Calculated Performance/Aggregation_basic_diagram.png"><img src="/sites/default/files/zenpack/Calculated Performance/Aggregation_basic_diagram.png"></a></div>
 
 <p>Datapoint Aggregator datapoints are a new capability in v2.0. They perform a point-in-time aggregation of any other datapoint on a set of target elements. The target elements in question can be any elements in the Zenoss system that have datapoints associated with them. This is not limited by type, Device Class, or containing device, though it is limited to elements collected on the same physical collector as the aggregating element. An aggregation can be any n-ary commutative mathematical operation, such as sum, maximum, or standard deviation. Most aggregations give results in the same units as the input.</p>
 
@@ -194,13 +194,13 @@ dd {
 
 <h4 id="best-practices-for-derived-datapoints-using-topological-sort">Best Practices for Derived Datapoints: Using Topological Sort</h4>
 
-<div class="thumbnail"><a href="/sites/default/files/zenpack/Calculated Performance/Aggregation_delay_diagram.png.png"><img src="/sites/default/files/zenpack/Calculated Performance/Aggregation_delay_diagram.png.png"></a></div>
+<div class="thumbnail"><a href="/sites/default/files/zenpack/Calculated Performance/Aggregation_delay_diagram.png"><img src="/sites/default/files/zenpack/Calculated Performance/Aggregation_delay_diagram.png"></a></div>
 
 <p>As mentioned above, both Calculated Performance and Datapoint Aggregator datasources incur a 1-collection cycle delay when collecting. This problem compounds when both are in play. Each time you calculate or aggregate a datapoint, a 1-cycle delay is added. In this example, some aggregations are performed, then a calculation, then a final aggregation. Each step incurs a 1-cycle delay, resulting in data that is 4 cycles old by the time the final aggregation is stored.</p>
 
 <br class="clear">
 
-<div class="thumbnail"><a href="/sites/default/files/zenpack/Calculated Performance/Aggregation_delay_mitigated.png.png"><img src="/sites/default/files/zenpack/Calculated Performance/Aggregation_delay_mitigated.png.png"></a></div>
+<div class="thumbnail"><a href="/sites/default/files/zenpack/Calculated Performance/Aggregation_delay_mitigated.png"><img src="/sites/default/files/zenpack/Calculated Performance/Aggregation_delay_mitigated.png"></a></div>
 
 <p>However, not all compound datapoints necessarily incur a delay. If the derived datapoints for the Final Aggregator, Calculated Point, Super Aggregator, and both Aggregating Entities are set to the same cycle time, and all of these datasources are within a single device's context (i.e., the device itself or a component of that device), we will perform a <a href="http://en.wikipedia.org/wiki/Topological_sorting" target="_blank">topological sort</a> on the datapoint dependency graph to attempt to collect them so that all three values are available within one collection cycle. This sorting requires that there be no cyclic dependencies between datapoints.</p>
 
@@ -224,7 +224,7 @@ class RandomContentsElementPool(ElementPool):
 <h2 id="caveats">Caveats</h2>
 <p>All derived datapoints rely on reading previously collected target datapoints from the performance data store. As such, the calculation of the derived value will be delayed by as much as an entire collection cycle. In general, derived datapoints should be considered to incur a 1-cycle delay for each aggregation or calculation step. In practice, we can often compute an entire tree of aggregation and calculation steps in the same collection cycle. See: <a href="#best-practices-for-derived-datapoints-using-topological-sort">Best Practices for Derived Datapoints: Using Topological Sort</a>.</p>
 
-Derived datapoints are only based on the most recent available data from target datapoints. This is limited to data up to 5*cycleTime seconds in the past. If a target datapoint does not exist on the target element, or has not been collected in the recent past, that element will be excluded from the calculation. This may mean that fewer datapoints than desired are used in the calculation (for aggregate datapoints), or that the overall result cannot be calculated at all. An event will be sent when this occurs.
+<p>Derived datapoints are only based on the most recent available data from target datapoints. This is limited to data up to 5*cycleTime seconds in the past. If a target datapoint does not exist on the target element, or has not been collected in the recent past, that element will be excluded from the calculation. This may mean that fewer datapoints than desired are used in the calculation (for aggregate datapoints), or that the overall result cannot be calculated at all. An event will be sent when this occurs.</p>
 
 <p><strong>Zenoss 4 Note</strong>: Performance data is stored locally on the collector. So only data from devices and components on the same collector can be aggregated. This is not a limitation in Zenoss 5.</p>
 
