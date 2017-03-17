@@ -23,9 +23,17 @@ try:
     from twisted.web.client import Agent, CookieAgent, FileBodyProducer, readBody, HTTPConnectionPool
     from twisted.web.http_headers import Headers
     from Products.ZenUtils.MetricServiceRequest import getPool
+    from Products.ZenUtils.metrics import ensure_prefix
 except ImportError:
     # Zenoss 4 won't have CookieAgent or FileBodyProducer. This is OK
     # because RRDReadThroughCache doesn't use them.
+    pass
+
+metaDataPrefix = False
+try:
+    from Products.ZenUtils.metrics import ensure_metadata_prefix
+    metaDataPrefix = True
+except ImportError:
     pass
 
 from twisted.internet.defer import inlineCallbacks
@@ -240,17 +248,7 @@ class BaseMetricServiceReadThroughCache(ReadThroughCache):
         })
 
     def _readLastValue(self, uuid, datasource, datapoint, rra='AVERAGE', rate=False, ago=300, targetConfig={}):
-        from Products.ZenUtils.metrics import ensure_prefix
-
-        metrics = []
-        if targetConfig.get('device'):
-            deviceId = targetConfig['device']['id']
-        else:
-            deviceId = targetConfig.get('id')
-        if not deviceId:
-            return None
-        name = ensure_prefix(deviceId, datasource + "_" + datapoint)
-        log.debug("should not need to fetch metric: %s %s_%s", name, uuid, datapoint)
+        log.debug("should not need to fetch metric: %s_%s",  datasource, datapoint)
 
     @inlineCallbacks
     def batchFetchMetrics(self, datasources):
@@ -263,7 +261,11 @@ class BaseMetricServiceReadThroughCache(ReadThroughCache):
 
         for ds in datasources:
             for dp in ds.points:
-                dsdpID = "%s/%s" % (dp.metadata["contextUUID"], dp.dpName)
+                if metaDataPrefix:
+                    dsdpID = ensure_prefix(dp.metadata, dp.dpName)
+                else:
+                    dsdpID = "%s/%s" % (dp.metadata["contextUUID"], dp.dpName)
+
                 if dsdpID in dsPoints:
                     log.debug("already found in ds points %s", dsdpID)
                 else:
@@ -278,16 +280,27 @@ class BaseMetricServiceReadThroughCache(ReadThroughCache):
                     # Target datapoints are what a datasource is made up of, if the
                     # target point is also a datasource datapoint that means we don't
                     # have to query for it since it will be calculated
-                    filterKey = "%s/%s_%s" % (targetConfig.get("uuid", None), dsname, datapoint)
+                    #rrdpath in target config is json string of metricmetadata
+                    metricMeta = json.loads(targetConfig.get('rrdpath', "{}"))
+                    dpName = "%s_%s" % (dsname, datapoint)
+                    if metaDataPrefix:
+                        filterKey = ensure_prefix(metricMeta, dpName)
+                    else:
+                        filterKey = "%s/%s_%s" % (targetConfig.get("uuid", None), dsname, datapoint)
+
                     if filterKey in dsPoints:
                         log.debug("skipping target datapoint %s, since also a datasource datapoint", filterKey)
                         continue
                     cachekey = self._getKey(dsname, datapoint, rra, targetValue)
-                    if not targetConfig.get('device'):
-                        deviceId = targetConfig.get('id')
+                    if metaDataPrefix:
+                        name = ensure_prefix(metricMeta, dpName)
                     else:
-                        deviceId = targetConfig['device']['id']
-                    name = ensure_prefix(deviceId, dsname + "_" + datapoint)
+                        if not targetConfig.get('device'):
+                            deviceId = targetConfig.get('id')
+                        else:
+                            deviceId = targetConfig['device']['id']
+                        name = ensure_prefix(deviceId, dsname + "_" + datapoint)
+
                     dsclassname = datasource.params['datasourceClassName']
                     sourcetypes[dsclassname] += 1
                     self._insert_key(metrics, name, rra, rate, uuid, cachekey)
@@ -469,10 +482,10 @@ class WildcardMetricServiceReadThroughCache(BaseMetricServiceReadThroughCache):
         results = json.loads(response)['series']
         log.debug("Success retrieving %s results", len(results))
         for row in results:
-            metricName = row["metric"]
+            metricName = row["metric"].rsplit("/", 1)[-1]
             contextUUID = row["tags"]["contextUUID"]
             device = row["tags"]["device"]
-            cacheKey = "%s/%s_AVERAGE" % (contextUUID, metricName.replace("%s/"%device, ""))
+            cacheKey = "%s/%s_AVERAGE" % (contextUUID, metricName)
             if row.get('datapoints'):
                 value = row.get('datapoints')[0][1]
                 timestamp = row.get('datapoints')[0][0]
@@ -480,7 +493,7 @@ class WildcardMetricServiceReadThroughCache(BaseMetricServiceReadThroughCache):
                 self._cacheValue(cacheKey, value)
             else:
                 # put an entry so we don't fetch it again
-                self._cache[cacheKey] = None
+                self._cache.setdefault(cacheKey, None)
                 log.debug("unable to cache %s", cacheKey)
 
         return len(results)

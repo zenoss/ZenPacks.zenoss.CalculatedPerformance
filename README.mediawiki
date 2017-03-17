@@ -105,6 +105,9 @@ By default Zenoss tries to auto adjust collection intervals for Calculated Perfo
 
 == Changes ==
 
+;2.3.2
+* Support new contextMetric capability in Zenoss 5.2.3. (ZEN-27010)
+
 ;2.3.1 - 2017-03-04
 * Clarify event when aggregation operation is blank or invalid. (ZPS-71)
 * Change default aggregation operation from blank to "sum". (ZPS-71)
