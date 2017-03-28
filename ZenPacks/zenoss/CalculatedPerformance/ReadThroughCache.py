@@ -102,6 +102,11 @@ def add_timeout(deferred, seconds):
     return deferred
 
 class ReadThroughCache(object):
+
+    def __init__(self):
+        self._cache = {}
+        self._timestampCache = defaultdict(deque)
+
     def _getKey(self, datasource, datapoint, rra, targetValue):
         return '%s/%s_%s_%s' % (targetValue, datasource, datapoint, rra)
 
@@ -163,21 +168,24 @@ class ReadThroughCache(object):
             log.warn("No %s present for target %s" % (self._targetKey, getTargetId(targetConfig)))
             return None
 
-        cachekey = self._getKey(datasource, datapoint, rra, targetValue)
+        cacheKey = self._getKey(datasource, datapoint, rra, targetValue)
         # fetch from the cache if able
-        if cachekey in self._cache:
-            log.debug("Using cached value for %s: %s", cachekey, self._cache[cachekey])
-            return self._cache[cachekey]
-        log.debug("Not Using cached value for %s", cachekey)
-        readValue = self._readLastValue(targetValue, datasource, datapoint, rra, rate, ago, targetConfig)
+        if cacheKey in self._cache:
+            log.debug("Using cached value for %s: %s", cacheKey, self._cache[cacheKey])
+            return self._cache[cacheKey]
 
+        log.debug("Not Using cached value for %s", cacheKey)
+
+        # Provides a readValue only with RRDReadThroughCache implementation,
+        # which is used in 4.x systems.
+        readValue = self._readLastValue(targetValue, datasource, datapoint, rra, rate, ago, targetConfig)
         if readValue is not None:
-            value = (readValue, int(time.time()),)
-            self._cacheValue(cachekey, value)
-            return self._cache[cachekey]
+            self._cache[cacheKey] = readValue
+            return readValue
         else:
-            log.debug("Last value for target %s not present for datapoint %s_%s",
-                      getTargetId(targetConfig), datasource, datapoint)
+            log.debug(
+                "Last value for target %s not present for datapoint %s_%s",
+                getTargetId(targetConfig), datasource, datapoint)
 
     def invalidate(self, key=None):
         if key is not None:
@@ -185,7 +193,7 @@ class ReadThroughCache(object):
                 del self._cache[key]
             return
         else:
-            self._cache = defaultdict(deque)
+            self._cache = {}
 
     def put(self, datasource, datapoint, rra, targetPath, targetID, value):
         """
@@ -195,15 +203,56 @@ class ReadThroughCache(object):
         if self._targetKey == "uuid":
             val = targetID
         cacheKey = self._getKey(datasource, datapoint, rra, val)
-        self._cacheValue(cacheKey, value)
+        self._cache[cacheKey] = value
+
+    @property
+    def timestampCache(self):
+        """Return the timestamp cache.
+
+        Representation of the timestamp cache:
+            defaultdict(<type 'collections.deque'>, {
+                u'cbe42e3a-7099-465d-9065-12f1478c5a94/basis_twenty_AVERAGE': deque([1490692848, 1490692868]), 
+                u'649c8bbb-30c1-4925-9253-66a69dc00f4d/basis_twenty_AVERAGE': deque([1490692857, 1490692877]), 
+                u'6f23612e-58aa-4652-b753-cc4957a48f20/basis_twenty_AVERAGE': deque([1490692857, 1490692877]), 
+                u'79c14b21-23c0-462c-a2a8-43c541fe7ba7/basis_twenty_AVERAGE': deque([1490692881, 1490692891]), 
+                u'bcb3e877-8e67-4464-9615-eaa08276f537/basis_twenty_AVERAGE': deque([1490692847, 1490692867]),})
+
+        """
+        return self._timestampCache
+
+    def cacheTimestamp(self, cacheKey, newTimestamp):
+        """Put a new timestamp to the timestamp cache.
+
+        Args:
+            cacheKey (str): A combination of target UUID, 
+                datasource, datapoint and RRA.
+            newTimestamp (int): The last collection timestamp 
+                for the cacheKey.
+
+        """
+        if cacheKey in self._timestampCache:
+            cachedTimestamps = self._timestampCache[cacheKey]
+            if cachedTimestamps:
+                # Don't add duplicates.
+                if newTimestamp in cachedTimestamps:
+                    return None
+                # Check whether we already have the timestamps for 
+                # the last and previous collection cycles regarding the cacheKey, 
+                # so, we can remove the previous collection timestamp and move
+                # the last collection timestamp to the previous position.
+                if len(cachedTimestamps) > 1:
+                    self._timestampCache[cacheKey].popleft()
+        # Cache the last collection timestamp for the cacheKey.
+        self._timestampCache[cacheKey].append(newTimestamp)
 
 
 class RRDReadThroughCache(ReadThroughCache):
     def __init__(self):
-        self._cache = defaultdict(deque)
-        self._targetKey = 'rrdpath'
         from Products.ZenModel.PerformanceConf import performancePath
 
+        super(RRDReadThroughCache, self).__init__()
+
+        self._targetKey = 'rrdpath'
         self._performancePath = performancePath
 
     def _readLastValue(self, targetPath, datasource, datapoint, rra='AVERAGE', rate=False, ago=300,
@@ -231,12 +280,13 @@ class BaseMetricServiceReadThroughCache(ReadThroughCache):
 
     def __init__(self):
         from Products.Zuul.facades.metricfacade import DATE_FORMAT, AGGREGATION_MAPPING
+        from Products.Zuul.interfaces import IAuthorizationTool
+
+        super(BaseMetricServiceReadThroughCache, self).__init__()
 
         self._datefmt = DATE_FORMAT
         self._aggMapping = AGGREGATION_MAPPING
-        self._cache = defaultdict(deque)
         self._targetKey = 'uuid'
-        from Products.Zuul.interfaces import IAuthorizationTool
 
         creds = IAuthorizationTool(None).extractGlobalConfCredentials()
         auth = base64.b64encode('{login}:{password}'.format(**creds))
@@ -396,16 +446,6 @@ class BaseMetricServiceReadThroughCache(ReadThroughCache):
             d.addCallback(self.onError)
         return d
 
-    def _cacheValue(self, cacheKey, value):
-        """This method sets/pops a value to/from the cache."""
-        if cacheKey in self._cache:
-            cachedValue = self._cache[cacheKey]
-            if cachedValue is None and value:
-                self._cache[cacheKey] = deque()
-            elif cachedValue and len(cachedValue) > 1:
-                self._cache[cacheKey].popleft()
-        self._cache[cacheKey].append(value)
-
 
 class MetricServiceReadThroughCache(BaseMetricServiceReadThroughCache):
 
@@ -442,10 +482,12 @@ class MetricServiceReadThroughCache(BaseMetricServiceReadThroughCache):
         log.debug("Success retrieving %s results", len(results))
         for row in results:
             if row.get('datapoints'):
-                value = (
-                    row.get('datapoints')[0]['value'], 
-                    row.get('datapoints')[0]['timestamp'],)
-                self._cacheValue(row['metric'], value)
+                value = row.get('datapoints')[0]['value']
+                timestamp = row.get('datapoints')[0]['timestamp']
+                # row['metric'] is a combination of UUID, 
+                # datasource, datapoint and RRA. 
+                self._cache[row['metric']] = value
+                self.cacheTimestamp(row['metric'], timestamp)
                 log.debug("cached %s: %s", row['metric'], self._cache[row['metric']])
             else:
                 # put an entry so we don't fetch it again
@@ -489,8 +531,8 @@ class WildcardMetricServiceReadThroughCache(BaseMetricServiceReadThroughCache):
             if row.get('datapoints'):
                 value = row.get('datapoints')[0][1]
                 timestamp = row.get('datapoints')[0][0]
-                value = (value, timestamp,)
-                self._cacheValue(cacheKey, value)
+                self._cache[cacheKey] = value
+                self.cacheTimestamp(cacheKey, timestamp)
             else:
                 # put an entry so we don't fetch it again
                 self._cache.setdefault(cacheKey, None)
