@@ -21,10 +21,19 @@ dd {
 <h1 id="title">Calculated Performance ZenPack</h1>
 
 <h2 id="releases">Releases</h2>
+<dl id="release-2.4.0">
+    <dt>Version 2.4.0 <a class="external" href="http://wiki.zenoss.org/download/zenpacks/ZenPacks.zenoss.CalculatedPerformance/2.4.0/ZenPacks.zenoss.CalculatedPerformance-2.4.0.egg">Download</a></dt>
+    <dd>Released: 2017-03-31</dd>
+    <dd>Compatible with Zenoss 4.2 - 5.2</dd>
+    <dd>Requires:
+        <a href="/product/zenpacks/pythoncollector">PythonCollector ZenPack (v1.9.0 or later)</a>
+    </dd>
+</dl>
+
 <dl id="release-2.3.2">
     <dt>Version 2.3.2 <a class="external" href="http://wiki.zenoss.org/download/zenpacks/ZenPacks.zenoss.CalculatedPerformance/2.3.2/ZenPacks.zenoss.CalculatedPerformance-2.3.2.egg">Download</a></dt>
     <dd>Released: 2017-03-17</dd>
-    <dd>Compatible with Zenoss 4.2 - 5.1</dd>
+    <dd>Compatible with Zenoss 4.2 - 5.2</dd>
     <dd>Requires:
         <a href="/product/zenpacks/pythoncollector">PythonCollector ZenPack (v1.3.0 or later)</a>
     </dd>
@@ -33,7 +42,7 @@ dd {
 <dl id="release-2.3.1">
     <dt>Version 2.3.1 <a class="external" href="http://wiki.zenoss.org/download/zenpacks/ZenPacks.zenoss.CalculatedPerformance/2.3.1/ZenPacks.zenoss.CalculatedPerformance-2.3.1.egg">Download</a></dt>
     <dd>Released: 2017-03-04</dd>
-    <dd>Compatible with Zenoss 4.2 - 5.1</dd>
+    <dd>Compatible with Zenoss 4.2 - 5.2</dd>
     <dd>Requires:
         <a href="/product/zenpacks/pythoncollector">PythonCollector ZenPack (v1.3.0 or later)</a>
     </dd>
@@ -237,7 +246,19 @@ class RandomContentsElementPool(ElementPool):
 
 <p><strong>Zenoss 4 Note</strong>: Performance data is stored locally on the collector. So only data from devices and components on the same collector can be aggregated. This is not a limitation in Zenoss 5.</p>
 
+<h2 id="auto-adjustment-of-the-collection-intervals">Auto Adjustment of the Collection Intervals</h2>
+<p>By default, Zenoss tries to auto adjust the collection intervals for both Calculated Performance and Datapoint Aggregator datasources to show aligned data intervals on the utilization graphs. It determines basis collection interval of the target datapoints and uses the interval for the aggregated/calculated datasources. In case of multiple basis datapoints with different collection intervals, the shortest interval will be used.</p>
+
+<p>If you want to disable this feature, you have uncheck the "Use Basis Interval" flare for your aggregated/calculated datasources. The "Use Basis Interval" property can be found on the aggregated/calculated datasource's configuration menu. When the "Use Basis Interval" is checked, the Minimum and Maximum Interval properties will be used to set limits of the basis interval. For instance, when the basis interval equals to 40 seconds and the Minimum Interval value is 60 seconds, the Minimum Interval will be used as the collection interval, the same rule is applicable to the Maximum Interval property. Minimum Interval cannot be less than 1 second.</p>
+
+<p><strong>Zenoss 4 Note</strong>: The auto adjustment of the collection intervals works only on Zenoss 5.</p>
+
 <h2 id="changes">Changes</h2>
+
+<h4 id="changes-2.4.0">2.4.0</h4>
+<ul>
+    <li>Add "Use Basis Interval" option to all datasource types. (ZPS-1134)</li>
+</ul>
 
 <h4 id="changes-2.3.2">2.3.2</h4>
 <ul>

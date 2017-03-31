@@ -3,12 +3,12 @@
 # or saved.  Do not modify them directly here.
 # NB: PACKAGES is deprecated
 NAME = "ZenPacks.zenoss.CalculatedPerformance"
-VERSION = "2.3.2"
+VERSION = "2.4.0"
 AUTHOR = "Zenoss"
 LICENSE = "GPLv2"
 NAMESPACE_PACKAGES = ['ZenPacks', 'ZenPacks.zenoss']
 PACKAGES = ['ZenPacks', 'ZenPacks.zenoss', 'ZenPacks.zenoss.CalculatedPerformance']
-INSTALL_REQUIRES = ['ZenPacks.zenoss.PythonCollector>=1.3.0']
+INSTALL_REQUIRES = ['ZenPacks.zenoss.PythonCollector>=1.9']
 COMPAT_ZENOSS_VERS = ">= 4.2"
 PREV_ZENPACK_NAME = ""
 # STOP_REPLACEMENTS
