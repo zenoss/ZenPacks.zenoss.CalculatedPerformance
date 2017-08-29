@@ -51,6 +51,15 @@ class CalculatedPerformanceDataSourceInfo(RRDDataSourceInfo):
 
     description = ProxyProperty('description')
     expression = ProxyProperty('expression')
+
+    @property
+    def extraContexts(self):
+        return '\n'.join(self._object.extraContexts)
+
+    @extraContexts.setter
+    def extraContexts(self, value):
+        self._object.extraContexts = [t.strip() for t in value.split('\n') if t.strip()]
+
     asRate = ProxyProperty('targetAsRate')
     debug = ProxyProperty('debug')
 

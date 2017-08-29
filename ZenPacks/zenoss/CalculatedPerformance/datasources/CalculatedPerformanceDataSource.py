@@ -42,6 +42,7 @@ class CalculatedPerformanceDataSource(PythonDataSource):
 
     description = ''
     expression = ''
+    extraContexts = []
     targetAsRate = False
     # we don't use oid but it is defined in basicdatasource so we need it here
     oid = ''
@@ -55,6 +56,7 @@ class CalculatedPerformanceDataSource(PythonDataSource):
     _properties = BasicDataSource._properties + (
         {'id': 'description', 'type': 'string', 'mode': 'w'},
         {'id': 'expression', 'type': 'string', 'mode': 'w'},
+        {'id': 'extraContexts', 'type': 'lines', 'mode': 'w'},
         {'id': 'targetAsRate', 'type': 'boolean', 'mode': 'w'},
         {'id': 'cycletime', 'type': 'int', 'mode': 'w'},
         {'id': 'debug', 'type': 'boolean', 'mode': 'w'},
