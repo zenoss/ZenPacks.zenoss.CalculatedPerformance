@@ -61,6 +61,11 @@ class CalculatedPerformanceDataSource(PythonDataSource):
       devices in this device class populate this rel with 1 ZenEventD
       component in all cases.
 
+    If a datapoint or model attribute exists on more than one thing
+    in the list of extraContexts the later thing in the list of extraContexts
+    will 'win'; if something exists on both one of the extraContexts
+    and the context (device or component to which the template containing
+    the datasource is bound), the context will 'win'.
     """
     ZENPACKID = 'ZenPacks.zenoss.CalculatedPerformance'
 
