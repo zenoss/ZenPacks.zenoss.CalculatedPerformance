@@ -44,6 +44,56 @@ def getThresholdCacheKey(datasource, datapoint):
                             datasource.datasource, datapoint.id)
 
 
+def getExtraTargets(extraContexts, device):
+    """
+    for each path in extraContexts, this retrieves only a device, or a component
+    within a ToManyContRelationship on a device
+    """
+    targets = []
+
+    for path in extraContexts:
+        if path == 'device':
+            targets.append(device)
+            continue
+        if path.count('/') != 1 :
+            log.warn("path '%s' is not 'device' nor is it 2 tokens joined by "
+                     "'/', skipping." % path)
+            continue
+
+        relname, extraId = path.split('/')
+        rels = [r for r in device.objectValues(spec=('ToManyContRelationship',))
+                if r.id == relname]
+
+        if not rels:
+            log.warn("the relname '%s' in path '%s' does not exist on device "
+                     "%s, skipping." % (relname, path, device.id))
+            continue
+
+        rel = rels[0]
+
+        extraTarget = getattr(rel, extraId, None)
+
+        if extraTarget:
+            targets.append(extraTarget)
+            continue
+
+        if extraId.isdigit():
+            index = int(extraId)
+            if index < len(rel()):
+                extraTarget = rel()[index]
+                targets.append(extraTarget)
+            else:
+                log.warn("the contents of relationship %s on device %s is too "
+                         "short to get member '%s', skipping'" % (relname,
+                         device.id, extraId))
+        else:
+            log.warn("the component id '%s' in path '%s' does not exist on the "
+                     "relationship %s on device %s, skipping." % (extraId, path,
+                     relname, device.id))
+
+    return targets
+
+
 def dsDescription(ds, devdict):
     return """expression: %s
 dictionary: %s
@@ -107,7 +157,7 @@ def getCollectionInterval(timestamps, minimumInterval, maximumInterval):
     return max(1, max(min(maximum, interval), minimum))
 
 
-def getCollectionIntervals(timestampCache, targets, 
+def getCollectionIntervals(timestampCache, targetUuids,
                            targetDatasource, targetDatapoint, targetRRA,
                            minimumInterval, maximumInterval):
     """Determine the collection intervals for a particular datasource 
@@ -115,7 +165,7 @@ def getCollectionIntervals(timestampCache, targets,
 
     Args:
         timestampCache (defaultdict): A cache with timestamps. 
-        targets (list): A list of components to be processed.
+        targetUuids (list): A list of component UUIDs to be processed.
         targetDatasource (str): Base datasource.
         targetDatapoint (str): Base datapoint.
         targetRRA (str): Round Robin Archive, AVERAGE by default.
@@ -129,10 +179,7 @@ def getCollectionIntervals(timestampCache, targets,
 
     """
     intervals = []
-    for target in targets:
-        targetUUID = target['uuid']
-        if not targetUUID:
-            continue
+    for targetUUID in targetUuids:
         cacheKey = "{0}/{1}_{2}_{3}".format(
             targetUUID, targetDatasource, targetDatapoint, targetRRA)
         timestamps = timestampCache.get(cacheKey)
@@ -166,10 +213,12 @@ class AggregatingDataSourcePlugin(object):
 
         zDebug = context.getZ('zDatasourceDebugLogging')
         return dict(
-            targetDatapoints = [(datasource.targetDataSource, datasource.targetDataPoint,
-                                 datasource.targetRRA or 'AVERAGE', datasource.targetAsRate)],
+            targetDatapoints = [(datasource.targetDataSource,
+                                 datasource.targetDataPoint,
+                                 datasource.targetRRA or 'AVERAGE',
+                                 datasource.targetAsRate,
+                                 targetInfos)],
             targetArgValues=[tuple(targetArgValues)],
-            targets=targetInfos,
             debug=datasource.debug or zDebug,
             useBasisInterval=datasource.useBasisInterval,
             minimumInterval=datasource.minimumInterval,
@@ -190,7 +239,7 @@ class AggregatingDataSourcePlugin(object):
             'maximumInterval', MAXIMUM_INTERVAL)
 
         #Aggregate datasources only have one target datapoint config
-        targetDatasource, targetDatapoint, targetRRA, targetAsRate = datasource.params['targetDatapoints'][0]
+        targetDatasource, targetDatapoint, targetRRA, targetAsRate, targets = datasource.params['targetDatapoints'][0]
 
         targetValues, errors = yield self.getLastValues(rrdcache,
                                                 targetDatasource,
@@ -198,14 +247,14 @@ class AggregatingDataSourcePlugin(object):
                                                 targetRRA,
                                                 targetAsRate,
                                                 datasource.cycletime,
-                                                datasource.params['targets'])
+                                                targets)
 
         logMethod = log.error if debug else log.debug
         for ex, msg in errors:
             logMethod('%s: %s', msg, ex)
 
         if not targetValues:
-            if datasource.params['targets']:
+            if targets:
                 msg = "No target values collected for datasource %s" % dsKey(datasource)
                 collectedEvents.append({
                     'summary': msg,
@@ -221,10 +270,10 @@ class AggregatingDataSourcePlugin(object):
             })
 
         if useBasisInterval:
-            targets = datasource.params.get('targets', [])
+            targetUuids = [t['uuid'] for t in targets if t['uuid']]
             collectionIntervals = getCollectionIntervals(
                 rrdcache.timestampCache,
-                targets,
+                targetUuids,
                 targetDatasource,
                 targetDatapoint,
                 targetRRA,
@@ -328,7 +377,6 @@ class CalculatedDataSourcePlugin(object):
     def params(cls, datasource, context):
         zDebug = context.getZ('zDatasourceDebugLogging')
         config = {
-            'targets': [targetInfo(context)],
             'expression': datasource.expression,
             'debug': datasource.debug or zDebug,
             'template': datasource.rrdTemplate().getPrimaryId(),
@@ -338,33 +386,62 @@ class CalculatedDataSourcePlugin(object):
         }
 
         attrs = {}
-        targetDataPoints = []
+        targetDatapoints = {}
 
-        allDatapointsByVarName = {}
-        for dp in context.getRRDDataPoints():
-            allDatapointsByVarName[dp.id] = dp
-            allDatapointsByVarName[dp.name()] = dp
+        # keep track of all datapoints from all targets so we can avoid
+        # looking for an attribute when we have found a datapoint by name on
+        # an earlier target already.
+        combinedDatapoints = {}
 
-        for att in getVarNames(datasource.expression):
+        # extraContents can contain paths to other objects that could have
+        # metrics or attributes.
+        allTargets = getExtraTargets(datasource.extraContexts, context.device())
+        allTargets.append(context)
 
-            if att in allDatapointsByVarName:
-                datapoint = allDatapointsByVarName[att]
-                targetDataPoints.append((datapoint.datasource().id, datapoint.id, 'AVERAGE', datasource.targetAsRate))
-            else:
-                value = dotTraverse(context, att)
-                if not CalculatedDataSourcePlugin.isPicklable(value):
-                    log.error("Calculated Performance expression %s references "
-                        "invalid attribute (unpicklable value) %s" %(datasource.expression, att))
-                    return config
-                attrs[att] = value
-                if value is None:
-                    log.warn(
-                        "Calculated Performance expression %s references "
-                        "the variable %s which is not in %s on the context %s" % (
-                            datasource.expression, att, allDatapointsByVarName.keys(), context))
+        # count down to the last target
+        hasMore = len(allTargets)
+
+        for target in allTargets:
+            hasMore -= 1
+
+            allDatapointsByVarName = {}
+            for dp in target.getRRDDataPoints():
+                allDatapointsByVarName[dp.id] = dp
+                allDatapointsByVarName[dp.name()] = dp
+            combinedDatapoints.update(allDatapointsByVarName)
+
+            for att in getVarNames(datasource.expression):
+
+                if att in allDatapointsByVarName:
+                    datapoint = allDatapointsByVarName[att]
+                    fqdpn = '%s_%s' % (datapoint.datasource().id, datapoint.id)
+                    targetDatapoints[fqdpn] = (datapoint.datasource().id,
+                                               datapoint.id,
+                                               'AVERAGE',
+                                               datasource.targetAsRate,
+                                               [targetInfo(target)])
+
+                elif att not in combinedDatapoints:
+                    value = dotTraverse(target, att)
+                    if not CalculatedDataSourcePlugin.isPicklable(value):
+                        log.error("Calculated Performance expression %s references "
+                                  "invalid attribute (unpicklable value) %s" % (
+                                  datasource.expression, att))
+                        return config
+
+                    # only store None if we finished and never found
+                    # a more interesting value
+                    if value is not None:
+                        attrs[att] = value
+                    elif att not in attrs and not hasMore:
+                        attrs[att] = value
+                        log.warn("Calculated Performance expression %s references "
+                                 "the variable %s which is not in %s on the targets %s" % (
+                                 datasource.expression, att,
+                                 combinedDatapoints.keys(), allTargets))
 
         config['obj_attrs'] = attrs
-        config['targetDatapoints'] = targetDataPoints
+        config['targetDatapoints'] = targetDatapoints.values()
         return config
 
     @inlineCallbacks
@@ -388,14 +465,14 @@ class CalculatedDataSourcePlugin(object):
             datapointDict = {}
             gotAllRRDValues = True
 
-            for targetDatasource, targetDatapoint, targetRRA, targetAsRate in datasource.params['targetDatapoints']:
+            for targetDatasource, targetDatapoint, targetRRA, targetAsRate, targets in datasource.params['targetDatapoints']:
                 try:
                     value = yield rrdcache.getLastValue(targetDatasource,
                                                         targetDatapoint,
                                                         targetRRA,
                                                         targetAsRate,
                                                         datasource.cycletime*5,
-                                                        datasource.params['targets'][0])
+                                                        targets[0])
 
                 except StandardError as ex:
                     description = dsDescription(datasource, devdict)
@@ -434,11 +511,11 @@ class CalculatedDataSourcePlugin(object):
                     gotAllRRDValues = False
                 else:
                     if useBasisInterval:
-                        targets = datasource.params.get('targets', [])
+                        targetUuids = [t['uuid'] for t in targets if t['uuid']]
                         collectionIntervals.extend(
                             getCollectionIntervals(
                                 rrdcache.timestampCache,
-                                targets,
+                                targetUuids,
                                 targetDatasource,
                                 targetDatapoint,
                                 targetRRA,
@@ -458,10 +535,6 @@ class CalculatedDataSourcePlugin(object):
 
                     # Syntax 4
                     datapointDict[fqdpn] = value
-
-                if value is not None:
-                    rrdValues[targetDatapoint] = value
-                    rrdValues['%s_%s' % (targetDatasource, targetDatapoint)] = value
 
             result = None
             if gotAllRRDValues:
@@ -493,7 +566,8 @@ class CalculatedDataSourcePlugin(object):
                     logMethod = log.exception if debug else log.debug
                     logMethod(msg + "\n%s", ex)
             else:
-                log.debug("Can't get RRD values for EXPR: %s --> DS: %s" % (expression, dsKey(datasource)))
+                logMethod = log.warn if debug else log.debug
+                logMethod("Can't get RRD values for EXPR: %s --> DS: %s" % (expression, dsKey(datasource)))
 
             if result is not None:
                 collectedValues.setdefault(datasource.component, {})

@@ -30,6 +30,43 @@ from ZenPacks.zenoss.CalculatedPerformance import (
 
 
 class CalculatedPerformanceDataSource(PythonDataSource):
+    """
+    Notes about parameters:
+
+    The 'expression' parameter is literally an expression that is evaluated
+    by eval(), with a dictionary that contains metrics and model attributes
+    of the device or component context. Values from the model will be looked
+    up in zenhub before the config is sent to zenpython. Metrics will be
+    queried each time the single datapoint in the datasource is measured.
+
+    The 'extraContexts' parameter is a list of strings which allow other
+    components or the device to provide the metrics or model attributes
+    referred to by the expression.
+
+    Examples of valid 'extraContexts' entries if the device is in the /ZenossRM
+    device class, which has relationships named 'durableQueues' and
+    'zenEventDs':
+
+    'device' :
+      the special case
+
+    'durableQueues/zenoss.queues.zep.rawevents' :
+      the component whose id is 'zenoss.queues.zep.rawevents' in the
+      'durableQueues' relationship. Since one of the modeler plugins for
+      devices in this device class populate this rel, and a zenoss system
+      always has one of the above queues, this path returns something.
+
+    'zenEventDs/0' :
+      the component in this relationship. the modeler plugins for
+      devices in this device class populate this rel with 1 ZenEventD
+      component in all cases.
+
+    If a datapoint or model attribute exists on more than one thing
+    in the list of extraContexts the later thing in the list of extraContexts
+    will 'win'; if something exists on both one of the extraContexts
+    and the context (device or component to which the template containing
+    the datasource is bound), the context will 'win'.
+    """
     ZENPACKID = 'ZenPacks.zenoss.CalculatedPerformance'
 
     sourcetypes = ('Calculated Performance',)
@@ -42,6 +79,7 @@ class CalculatedPerformanceDataSource(PythonDataSource):
 
     description = ''
     expression = ''
+    extraContexts = []
     targetAsRate = False
     # we don't use oid but it is defined in basicdatasource so we need it here
     oid = ''
@@ -55,6 +93,7 @@ class CalculatedPerformanceDataSource(PythonDataSource):
     _properties = BasicDataSource._properties + (
         {'id': 'description', 'type': 'string', 'mode': 'w'},
         {'id': 'expression', 'type': 'string', 'mode': 'w'},
+        {'id': 'extraContexts', 'type': 'lines', 'mode': 'w'},
         {'id': 'targetAsRate', 'type': 'boolean', 'mode': 'w'},
         {'id': 'cycletime', 'type': 'int', 'mode': 'w'},
         {'id': 'debug', 'type': 'boolean', 'mode': 'w'},
