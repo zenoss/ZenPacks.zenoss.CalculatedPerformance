@@ -7,6 +7,7 @@
 
 from collections import defaultdict
 from itertools import chain, izip
+from functools import partial
 
 import logging
 import time
@@ -44,29 +45,51 @@ def getThresholdCacheKey(datasource, datapoint):
                             datasource.datasource, datapoint.id)
 
 
-def getExtraTargets(extraContexts, device):
+def getExtraTargets(extraContexts, context):
     """
-    for each path in extraContexts, this retrieves only a device, or a component
-    within a ToManyContRelationship on a device
+    for each path in extraContexts, this retrieves
+      1) the enclosing device (for path 'device')
+      2) the other end of a ToOneRelationship
+      3) a component in a ToManyContRelationship, by id or index
+      4) either 2 or 3, but starting from the device containing the context,
+             if the path begins 'device/' and the context is a component
     """
     targets = []
 
     for path in extraContexts:
         if path == 'device':
-            targets.append(device)
-            continue
-        if path.count('/') != 1 :
-            log.warn("path '%s' is not 'device' nor is it 2 tokens joined by "
-                     "'/', skipping." % path)
+            targets.append(context.device())
             continue
 
-        relname, extraId = path.split('/')
-        rels = [r for r in device.objectValues(spec=('ToManyContRelationship',))
+        logPreamble = "while looking for an extraContext for '%s' using path '%s'," % (context.id, path)
+        log_warn = partial(log.warn, "%s %s", logPreamble)
+
+        devPrefix = 'device/'
+        pathContext = context.device() if path.startswith(devPrefix) else context
+        relativePath = path[len(devPrefix):] if path.startswith(devPrefix) else path
+
+        toOneRels = [r for r
+                     in pathContext.objectValues(spec=('ToOneRelationship',))
+                     if r.id == relativePath]
+
+        if toOneRels:
+            target = toOneRels[0]()
+            if target:
+                targets.append(target)
+            else:
+                log_warn("relativePath '%s' led to an empty ToOne relationship on pathContext '%s', skipping." % (relativePath, pathContext.id))
+            continue
+
+        if relativePath.count('/') != 1 :
+            log_warn("relativePath '%s' does not lead to a ToOne relationship or an item in a ToManyContains relationship, skipping." % relativePath)
+            continue
+
+        relname, extraId = relativePath.split('/')
+        rels = [r for r in pathContext.objectValues(spec=('ToManyContRelationship',))
                 if r.id == relname]
 
         if not rels:
-            log.warn("the relname '%s' in path '%s' does not exist on device "
-                     "%s, skipping." % (relname, path, device.id))
+            log_warn("the relname '%s' in relativePath '%s' does not exist on pathContext '%s', skipping." % (relname, relativePath, pathContext.id))
             continue
 
         rel = rels[0]
@@ -83,13 +106,9 @@ def getExtraTargets(extraContexts, device):
                 extraTarget = rel()[index]
                 targets.append(extraTarget)
             else:
-                log.warn("the contents of relationship %s on device %s is too "
-                         "short to get member '%s', skipping'" % (relname,
-                         device.id, extraId))
+                log_warn("the contents of relationship '%s' on context '%s' is too short to get member '%s', skipping'" % (relname, pathContext.id, extraId))
         else:
-            log.warn("the component id '%s' in path '%s' does not exist on the "
-                     "relationship %s on device %s, skipping." % (extraId, path,
-                     relname, device.id))
+            log_warn("the extraId '%s' in relativePath '%s' does not exist on the relationship '%s' on '%s', skipping." % (extraId, relativePath, relname, pathContext.id))
 
     return targets
 
@@ -395,7 +414,7 @@ class CalculatedDataSourcePlugin(object):
 
         # extraContents can contain paths to other objects that could have
         # metrics or attributes.
-        allTargets = getExtraTargets(datasource.extraContexts, context.device())
+        allTargets = getExtraTargets(datasource.extraContexts, context)
         allTargets.append(context)
 
         # count down to the last target
