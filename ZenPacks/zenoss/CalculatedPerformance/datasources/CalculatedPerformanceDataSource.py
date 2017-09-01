@@ -45,21 +45,25 @@ class CalculatedPerformanceDataSource(PythonDataSource):
 
     Examples of valid 'extraContexts' entries if the device is in the /ZenossRM
     device class, which has relationships named 'durableQueues' and
-    'zenEventDs':
+    'zenEventDs', and the context of the datasource is a Collector component,
+    which has a 'hub' toOne relationship
 
     'device' :
       the special case
 
-    'durableQueues/zenoss.queues.zep.rawevents' :
+    'device/durableQueues/zenoss.queues.zep.rawevents' :
       the component whose id is 'zenoss.queues.zep.rawevents' in the
       'durableQueues' relationship. Since one of the modeler plugins for
       devices in this device class populate this rel, and a zenoss system
       always has one of the above queues, this path returns something.
 
-    'zenEventDs/0' :
+    'device/zenEventDs/0' :
       the component in this relationship. the modeler plugins for
       devices in this device class populate this rel with 1 ZenEventD
-      component in all cases.
+      component in all cases. It is a toMany containing relationship, however.
+
+    'hub' :
+      the ZenHub component at the other end of the Collectors 'hub' relationship
 
     If a datapoint or model attribute exists on more than one thing
     in the list of extraContexts the later thing in the list of extraContexts
