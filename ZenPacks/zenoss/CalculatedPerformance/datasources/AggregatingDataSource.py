@@ -8,10 +8,12 @@ from Globals import InitializeClass
 from AccessControl import ClassSecurityInfo
 from Products.ZenModel.RRDDataSource import RRDDataSource
 from Products.ZenModel.ZenossSecurity import ZEN_MANAGE_DMD
+from Products.ZenUtils.FunctionCache import FunctionCache
 from Products.Zuul.utils import safe_hasattr
 from ZenPacks.zenoss.CalculatedPerformance import (
     operations, USE_BASIS_INTERVAL, MINIMUM_INTERVAL, MAXIMUM_INTERVAL,)
 from ZenPacks.zenoss.CalculatedPerformance.AggregatingDataPoint import AggregatingDataPoint
+from ZenPacks.zenoss.CalculatedPerformance.utils import dotTraverse
 from ZenPacks.zenoss.PythonCollector.datasources.PythonDataSource \
     import PythonDataSource, PythonDataSourcePlugin
 
@@ -65,6 +67,36 @@ class AggregatingDataSource(PythonDataSource):
             "Aggregation of %s_%s:%s over %s" % \
             (self.targetDataSource, self.targetDataPoint, self.targetRRA, self.targetMethod)
         return description
+
+    def getCycleTime(self, context):
+        """Return collection interval for given context."""
+        if self.useBasisInterval:
+            cycletime = self.getTargetCycleTime(context)
+            if cycletime is not None:
+                # Enforce user-configured minimum and maximum bounds when
+                # using the basis interval. By default minimumInterval and
+                # maximumInterval are None which results in the basis interval
+                # being used regardless of its value.
+                return operations._bound(
+                    minValue=self.minimumInterval,
+                    value=cycletime,
+                    maxValue=self.maximumInterval)
+
+        return super(AggregatingDataSource, self).getCycleTime(context)
+
+    @FunctionCache("getTargetCycleTime", cache_miss_marker=-1, default_timeout=300)
+    def getTargetCycleTime(self, context):
+        """Return cycletime of basis datasources."""
+        for member in dotTraverse(context, self.targetMethod or '') or []:
+            for template in member.getRRDTemplates():
+                datasource = template.datasources._getOb(
+                    self.targetDataSource, None)
+
+                if datasource:
+                    if datasource.aqBaseHasAttr("getCycleTime"):
+                        return int(datasource.getCycleTime(member))
+                    elif datasource.aqBaseHasAttr("cycletime"):
+                        return int(datasource.cycletime)
 
     security.declareProtected(ZEN_MANAGE_DMD, 'manage_addRRDDataPoint')
     def manage_addRRDDataPoint(self, id, REQUEST=None):

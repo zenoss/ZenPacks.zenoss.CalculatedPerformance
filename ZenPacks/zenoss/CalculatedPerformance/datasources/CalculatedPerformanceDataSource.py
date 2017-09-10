@@ -20,6 +20,7 @@ from AccessControl import ClassSecurityInfo
 from Products.ZenModel.BasicDataSource import BasicDataSource
 from Products.ZenModel import RRDDataSource
 from Products.ZenModel.ZenPackPersistence import ZenPackPersistence
+from Products.ZenUtils.FunctionCache import FunctionCache
 from Products.ZenUtils.Utils import executeStreamCommand
 from Products.ZenModel.ZenossSecurity import ZEN_CHANGE_DEVICE
 from Products.ZenWidgets import messaging
@@ -27,6 +28,8 @@ from ZenPacks.zenoss.PythonCollector.datasources.PythonDataSource import PythonD
 
 from ZenPacks.zenoss.CalculatedPerformance import (
     operations, USE_BASIS_INTERVAL, MINIMUM_INTERVAL, MAXIMUM_INTERVAL,)
+
+from ZenPacks.zenoss.CalculatedPerformance.utils import getVarNames
 
 
 class CalculatedPerformanceDataSource(PythonDataSource):
@@ -82,6 +85,58 @@ class CalculatedPerformanceDataSource(PythonDataSource):
         if self.expression:
             description = self.expression
         return description
+
+    def getCycleTime(self, context):
+        """Return collection interval for given context."""
+        if self.useBasisInterval:
+            cycletime = self.getTargetCycleTime(context)
+            if cycletime is not None:
+                # Enforce user-configured minimum and maximum bounds when
+                # using the basis interval. By default minimumInterval and
+                # maximumInterval are None which results in the basis interval
+                # being used regardless of its value.
+                return operations._bound(
+                    minValue=self.minimumInterval,
+                    value=cycletime,
+                    maxValue=self.maximumInterval)
+
+        return super(CalculatedPerformanceDataSource, self).getCycleTime(context)
+
+    @FunctionCache("getTargetCycleTime", cache_miss_marker=-1, default_timeout=300)
+    def getTargetCycleTime(self, context):
+        """Return cycletime of basis datasources."""
+        datasources_by_varname = {}
+        for template in context.getRRDTemplates():
+            for datasource in template.datasources():
+                for datapoint in datasource.datapoints():
+                    datasources_by_varname[datapoint.id] = datasource
+                    datasources_by_varname[datapoint.name()] = datasource
+
+        cycletimes = set()
+
+        for varname in getVarNames(self.expression):
+            datasource = datasources_by_varname.get(varname)
+            if not datasource:
+                continue
+
+            # Some types of datasources such as PythonDataSource and
+            # UCSDataSource implement a getCycleTime(context) method that
+            # provides a context-specific interval instead of the static
+            # cycletime property used by most other types of datasources. We
+            # want to prefer the getCycleTime method's result to the cycletime
+            # value because it will actually be the real collection interval
+            # of the basis datasource.
+            if datasource.aqBaseHasAttr("getCycleTime"):
+                cycletimes.add(int(datasource.getCycleTime(context)))
+            elif datasource.aqBaseHasAttr("cycletime"):
+                cycletimes.add(int(datasource.cycletime))
+
+        if cycletimes:
+            # It's common for multiple basis datapoints to be used in the
+            # expression. In cases where different datapoints in the
+            # expression have different intervals, we'll choose the shortest
+            # interval.
+            return min(cycletimes)
 
     security.declareProtected(ZEN_CHANGE_DEVICE, 'manage_testDataSource')
     def manage_testDataSource(self, testDevice, REQUEST):
