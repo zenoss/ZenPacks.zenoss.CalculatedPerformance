@@ -125,7 +125,7 @@ class AggregatingDataSourcePlugin(object):
                                                 targetDatapoint,
                                                 targetRRA,
                                                 targetAsRate,
-                                                datasource.cycletime,
+                                                datasource.cycletime*5,
                                                 datasource.params['targets'])
 
         logMethod = log.error if debug else log.debug
