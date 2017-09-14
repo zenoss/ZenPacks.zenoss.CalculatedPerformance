@@ -280,7 +280,14 @@ class BaseMetricServiceReadThroughCache(ReadThroughCache):
                 else:
                     dsPoints.add(dsdpID)
         metrics = {}
+        max_cycletime = 0
         for datasource in datasources:
+            try:
+                if datasource.cycletime > max_cycletime:
+                    max_cycletime = datasource.cycletime
+            except AttributeError:
+                pass
+
             for dsname, datapoint, rra, rate in datasource.params['targetDatapoints']:
                 for targetConfig in datasource.params['targets']:
                     targetValue = targetConfig.get(self._targetKey, None)
@@ -316,7 +323,7 @@ class BaseMetricServiceReadThroughCache(ReadThroughCache):
         if not len(metrics):
             return
 
-        end, start = self._get_end_and_start()
+        end, start = self._get_end_and_start(ago=(max_cycletime or 3600) * 5)
         chunkSize = 1000
         yield self.fetchChunks(chunkSize, end, start, metrics.values(), sourcetypes)
 
@@ -430,10 +437,10 @@ class MetricServiceReadThroughCache(BaseMetricServiceReadThroughCache):
         log.debug("cachekey: %s %s", cachekey, _tmp)
         metrics[cachekey] = _tmp
 
-    def _get_end_and_start(self):
+    def _get_end_and_start(self, ago):
         today = datetime.today()
         end = today.strftime(self._datefmt)
-        start = (today - timedelta(seconds=600)).strftime(self._datefmt)
+        start = (today - timedelta(seconds=ago)).strftime(self._datefmt)
         return end, start
 
     def onMetricsFetch(self, response):
@@ -472,9 +479,9 @@ class WildcardMetricServiceReadThroughCache(BaseMetricServiceReadThroughCache):
                     tags=dict(contextUUID=["*"])
             )
 
-    def _get_end_and_start(self):
+    def _get_end_and_start(self, ago):
         end = int(time.time())
-        start = end - 600
+        start = end - ago
         return end, start
 
     def onMetricsFetch(self, response):
