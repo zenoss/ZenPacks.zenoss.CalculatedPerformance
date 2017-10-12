@@ -20,8 +20,7 @@ from Products.ZenEvents import ZenEventClasses
 from Products.ZenModel.DeviceComponent import DeviceComponent
 from Products.ZenUtils.Utils import monkeypatch
 from Products.Zuul import IInfo
-from ZenPacks.zenoss.CalculatedPerformance import (
-    operations, USE_BASIS_INTERVAL, MINIMUM_INTERVAL, MAXIMUM_INTERVAL,)
+from ZenPacks.zenoss.CalculatedPerformance import operations
 from ZenPacks.zenoss.CalculatedPerformance.ReadThroughCache import getReadThroughCache
 from ZenPacks.zenoss.CalculatedPerformance.utils import toposort, grouper, dotTraverse, getVarNames, createDeviceDictionary, dsKey
 from ZenPacks.zenoss.PythonCollector.datasources.PythonDataSource \
@@ -151,65 +150,6 @@ def handleArguments(targetArgValues, dpargs):
     return arguments
 
 
-def getCollectionInterval(timestamps, minimumInterval, maximumInterval):
-    """Determine the collection interval based on delta
-    between the last and previous data collection.
-
-    Args:
-        timestamps (list): A list of two timestamps, 
-            the first values is the previous collection timestamp and 
-            the second values is the last collection timestamp.
-        minimumInterval (int or None): The lowest possible value 
-            for the interval.
-        maximumInterval (int or None): The highest possible value 
-            for the interval.
-
-    Returns:
-        int: A collection interval.
-
-    """
-    previousCollectionTime = timestamps[0]
-    lastCollectionTime = timestamps[1]
-    interval = lastCollectionTime - previousCollectionTime
-    minimum = interval if minimumInterval is None else minimumInterval
-    maximum = interval if maximumInterval is None else maximumInterval
-    return max(1, max(min(maximum, interval), minimum))
-
-
-def getCollectionIntervals(timestampCache, targetUuids,
-                           targetDatasource, targetDatapoint, targetRRA,
-                           minimumInterval, maximumInterval):
-    """Determine the collection intervals for a particular datasource 
-    based on its basis datapoints.
-
-    Args:
-        timestampCache (defaultdict): A cache with timestamps. 
-        targetUuids (list): A list of component UUIDs to be processed.
-        targetDatasource (str): Base datasource.
-        targetDatapoint (str): Base datapoint.
-        targetRRA (str): Round Robin Archive, AVERAGE by default.
-        minimumInterval (int or None): The lowest possible value 
-            for the interval.
-        maximumInterval (int or None): The highest possible value 
-            for the interval.
-
-    Returns:
-        list: The collection intervals.
-
-    """
-    intervals = []
-    for targetUUID in targetUuids:
-        cacheKey = "{0}/{1}_{2}_{3}".format(
-            targetUUID, targetDatasource, targetDatapoint, targetRRA)
-        timestamps = timestampCache.get(cacheKey)
-        if timestamps and len(timestamps) > 1:
-            interval = getCollectionInterval(
-                timestamps, minimumInterval, maximumInterval)
-            if interval:
-                intervals.append(interval)
-    return intervals
-
-
 class AggregatingDataSourcePlugin(object):
 
     @classmethod
@@ -239,9 +179,6 @@ class AggregatingDataSourcePlugin(object):
                                  targetInfos)],
             targetArgValues=[tuple(targetArgValues)],
             debug=datasource.debug or zDebug,
-            useBasisInterval=datasource.useBasisInterval,
-            minimumInterval=datasource.minimumInterval,
-            maximumInterval=datasource.maximumInterval
         )
 
     @inlineCallbacks
@@ -250,12 +187,6 @@ class AggregatingDataSourcePlugin(object):
         collectedValues = {}
         data = {}
         debug = datasource.params.get('debug', None)
-        useBasisInterval = datasource.params.get(
-            'useBasisInterval', USE_BASIS_INTERVAL)
-        minimumInterval = datasource.params.get(
-            'minimumInterval', MINIMUM_INTERVAL)
-        maximumInterval = datasource.params.get(
-            'maximumInterval', MAXIMUM_INTERVAL)
 
         #Aggregate datasources only have one target datapoint config
         targetDatasource, targetDatapoint, targetRRA, targetAsRate, targets = datasource.params['targetDatapoints'][0]
@@ -265,8 +196,8 @@ class AggregatingDataSourcePlugin(object):
                                                 targetDatapoint,
                                                 targetRRA,
                                                 targetAsRate,
-                                                datasource.cycletime,
-                                                targets)
+                                                datasource.cycletime*5,
+                                                datasource.params['targets'])
 
         logMethod = log.error if debug else log.debug
         for ex, msg in errors:
@@ -287,20 +218,6 @@ class AggregatingDataSourcePlugin(object):
                 'events': collectedEvents,
                 'values': collectedValues,
             })
-
-        if useBasisInterval:
-            targetUuids = [t['uuid'] for t in targets if t['uuid']]
-            collectionIntervals = getCollectionIntervals(
-                rrdcache.timestampCache,
-                targetUuids,
-                targetDatasource,
-                targetDatapoint,
-                targetRRA,
-                minimumInterval,
-                maximumInterval)
-
-            if collectionIntervals:
-                data['interval'] = min(collectionIntervals)
 
         for datapoint in datasource.points:
             try:
@@ -399,9 +316,6 @@ class CalculatedDataSourcePlugin(object):
             'expression': datasource.expression,
             'debug': datasource.debug or zDebug,
             'template': datasource.rrdTemplate().getPrimaryId(),
-            'useBasisInterval': datasource.useBasisInterval,
-            'minimumInterval': datasource.minimumInterval,
-            'maximumInterval': datasource.maximumInterval
         }
 
         attrs = {}
@@ -467,15 +381,8 @@ class CalculatedDataSourcePlugin(object):
     def collect(self, config, datasource, rrdcache, collectionTime):
         collectedEvents = []
         collectedValues = {}
-        collectionIntervals = []
         expression = datasource.params.get('expression', None)
         debug = datasource.params.get('debug', None)
-        useBasisInterval = datasource.params.get(
-            'useBasisInterval', USE_BASIS_INTERVAL)
-        minimumInterval = datasource.params.get(
-            'minimumInterval', MINIMUM_INTERVAL)
-        maximumInterval = datasource.params.get(
-            'maximumInterval', MAXIMUM_INTERVAL)
 
         if expression:
             # We will populate this with perf metrics and pass to eval()
@@ -529,18 +436,6 @@ class CalculatedDataSourcePlugin(object):
                 if value is None:
                     gotAllRRDValues = False
                 else:
-                    if useBasisInterval:
-                        targetUuids = [t['uuid'] for t in targets if t['uuid']]
-                        collectionIntervals.extend(
-                            getCollectionIntervals(
-                                rrdcache.timestampCache,
-                                targetUuids,
-                                targetDatasource,
-                                targetDatapoint,
-                                targetRRA,
-                                minimumInterval,
-                                maximumInterval))
-
                     fqdpn = '%s_%s' % (targetDatasource, targetDatapoint)
 
                     # Syntax 1
@@ -596,9 +491,6 @@ class CalculatedDataSourcePlugin(object):
         data = {
             'events': collectedEvents,
             'values': collectedValues,}
-
-        if collectionIntervals:
-            data['interval'] = min(collectionIntervals)
 
         returnValue(data)
 
@@ -662,7 +554,6 @@ class DerivedDataSourceProxyingPlugin(PythonDataSourcePlugin):
         collectedEvents = []
         collectedValues = {}
         collectedMaps = []
-        collectedIntervals = []
 
         datasourcesByKey = {dsKey(ds): ds for ds in config.datasources}
         # if we are able prefetch all the metrics that we can
@@ -720,10 +611,6 @@ class DerivedDataSourceProxyingPlugin(PythonDataSourcePlugin):
                 dsclassname = datasource.params['datasourceClassName']
                 sourcetypes[dsclassname] += 1
 
-                interval = dsResult.get('interval')
-                if interval:
-                    collectedIntervals.append(interval)
-
         endCollectTime = time.time()
         timeTaken = endCollectTime - startCollectTime
         timeLogFn = log.debug
@@ -735,9 +622,6 @@ class DerivedDataSourceProxyingPlugin(PythonDataSourcePlugin):
             'events': collectedEvents,
             'values': collectedValues,
             'maps': collectedMaps,}
-
-        if collectedIntervals:
-            data['interval'] = min(collectedIntervals)
 
         returnValue(data)
 

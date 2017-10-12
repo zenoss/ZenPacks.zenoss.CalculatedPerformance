@@ -5,7 +5,7 @@
 # License.zenoss under the directory where your Zenoss product is installed.
 #
 
-from collections import defaultdict, deque
+from collections import defaultdict
 from datetime import datetime, timedelta
 
 import time
@@ -105,7 +105,6 @@ class ReadThroughCache(object):
 
     def __init__(self):
         self._cache = {}
-        self._timestampCache = defaultdict(deque)
 
     def _getKey(self, datasource, datapoint, rra, targetValue):
         return '%s/%s_%s_%s' % (targetValue, datasource, datapoint, rra)
@@ -205,46 +204,6 @@ class ReadThroughCache(object):
         cacheKey = self._getKey(datasource, datapoint, rra, val)
         self._cache[cacheKey] = value
 
-    @property
-    def timestampCache(self):
-        """Return the timestamp cache.
-
-        Representation of the timestamp cache:
-            defaultdict(<type 'collections.deque'>, {
-                u'cbe42e3a-7099-465d-9065-12f1478c5a94/basis_twenty_AVERAGE': deque([1490692848, 1490692868]), 
-                u'649c8bbb-30c1-4925-9253-66a69dc00f4d/basis_twenty_AVERAGE': deque([1490692857, 1490692877]), 
-                u'6f23612e-58aa-4652-b753-cc4957a48f20/basis_twenty_AVERAGE': deque([1490692857, 1490692877]), 
-                u'79c14b21-23c0-462c-a2a8-43c541fe7ba7/basis_twenty_AVERAGE': deque([1490692881, 1490692891]), 
-                u'bcb3e877-8e67-4464-9615-eaa08276f537/basis_twenty_AVERAGE': deque([1490692847, 1490692867]),})
-
-        """
-        return self._timestampCache
-
-    def cacheTimestamp(self, cacheKey, newTimestamp):
-        """Put a new timestamp to the timestamp cache.
-
-        Args:
-            cacheKey (str): A combination of target UUID, 
-                datasource, datapoint and RRA.
-            newTimestamp (int): The last collection timestamp 
-                for the cacheKey.
-
-        """
-        if cacheKey in self._timestampCache:
-            cachedTimestamps = self._timestampCache[cacheKey]
-            if cachedTimestamps:
-                # Don't add duplicates.
-                if newTimestamp in cachedTimestamps:
-                    return None
-                # Check whether we already have the timestamps for 
-                # the last and previous collection cycles regarding the cacheKey, 
-                # so, we can remove the previous collection timestamp and move
-                # the last collection timestamp to the previous position.
-                if len(cachedTimestamps) > 1:
-                    self._timestampCache[cacheKey].popleft()
-        # Cache the last collection timestamp for the cacheKey.
-        self._timestampCache[cacheKey].append(newTimestamp)
-
 
 class RRDReadThroughCache(ReadThroughCache):
     def __init__(self):
@@ -321,9 +280,17 @@ class BaseMetricServiceReadThroughCache(ReadThroughCache):
                 else:
                     dsPoints.add(dsdpID)
         metrics = {}
+        max_cycletime = 0
         for datasource in datasources:
+            try:
+                if datasource.cycletime > max_cycletime:
+                    max_cycletime = datasource.cycletime
+            except AttributeError:
+                pass
+
             for dsname, datapoint, rra, rate, targets in datasource.params['targetDatapoints']:
                 for targetConfig in targets:
+
                     targetValue = targetConfig.get(self._targetKey, None)
                     uuid = targetValue
                     # filter out target datapoints that match a datasource datapoint
@@ -357,7 +324,7 @@ class BaseMetricServiceReadThroughCache(ReadThroughCache):
         if not len(metrics):
             return
 
-        end, start = self._get_end_and_start()
+        end, start = self._get_end_and_start(ago=(max_cycletime or 3600) * 5)
         chunkSize = 1000
         yield self.fetchChunks(chunkSize, end, start, metrics.values(), sourcetypes)
 
@@ -471,10 +438,10 @@ class MetricServiceReadThroughCache(BaseMetricServiceReadThroughCache):
         log.debug("cachekey: %s %s", cachekey, _tmp)
         metrics[cachekey] = _tmp
 
-    def _get_end_and_start(self):
+    def _get_end_and_start(self, ago):
         today = datetime.today()
         end = today.strftime(self._datefmt)
-        start = (today - timedelta(seconds=600)).strftime(self._datefmt)
+        start = (today - timedelta(seconds=ago)).strftime(self._datefmt)
         return end, start
 
     def onMetricsFetch(self, response):
@@ -483,11 +450,9 @@ class MetricServiceReadThroughCache(BaseMetricServiceReadThroughCache):
         for row in results:
             if row.get('datapoints'):
                 value = row.get('datapoints')[0]['value']
-                timestamp = row.get('datapoints')[0]['timestamp']
-                # row['metric'] is a combination of UUID, 
+                # row['metric'] is a combination of UUID,
                 # datasource, datapoint and RRA. 
                 self._cache[row['metric']] = value
-                self.cacheTimestamp(row['metric'], timestamp)
                 log.debug("cached %s: %s", row['metric'], self._cache[row['metric']])
             else:
                 # put an entry so we don't fetch it again
@@ -515,9 +480,9 @@ class WildcardMetricServiceReadThroughCache(BaseMetricServiceReadThroughCache):
                     tags=dict(contextUUID=["*"])
             )
 
-    def _get_end_and_start(self):
+    def _get_end_and_start(self, ago):
         end = int(time.time())
-        start = end - 600
+        start = end - ago
         return end, start
 
     def onMetricsFetch(self, response):
@@ -530,9 +495,7 @@ class WildcardMetricServiceReadThroughCache(BaseMetricServiceReadThroughCache):
             cacheKey = "%s/%s_AVERAGE" % (contextUUID, metricName)
             if row.get('datapoints'):
                 value = row.get('datapoints')[0][1]
-                timestamp = row.get('datapoints')[0][0]
                 self._cache[cacheKey] = value
-                self.cacheTimestamp(cacheKey, timestamp)
             else:
                 # put an entry so we don't fetch it again
                 self._cache.setdefault(cacheKey, None)
