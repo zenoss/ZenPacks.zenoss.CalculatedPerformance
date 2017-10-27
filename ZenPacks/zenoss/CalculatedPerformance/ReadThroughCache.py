@@ -288,8 +288,9 @@ class BaseMetricServiceReadThroughCache(ReadThroughCache):
             except AttributeError:
                 pass
 
-            for dsname, datapoint, rra, rate in datasource.params['targetDatapoints']:
-                for targetConfig in datasource.params['targets']:
+            for dsname, datapoint, rra, rate, targets in datasource.params['targetDatapoints']:
+                for targetConfig in targets:
+
                     targetValue = targetConfig.get(self._targetKey, None)
                     uuid = targetValue
                     # filter out target datapoints that match a datasource datapoint

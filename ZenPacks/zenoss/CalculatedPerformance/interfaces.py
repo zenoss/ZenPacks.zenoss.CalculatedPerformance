@@ -84,6 +84,11 @@ class ICalculatedPerformanceDataSourceInfo(IRRDDataSourceInfo):
         group=_t('Detail'),
         xtype='twocolumntextarea')
 
+    extraContexts = schema.Text(
+        title=_t(u'Extra Contexts'),
+        group=_t('Detail'),
+        xtype='twocolumntextarea')
+
     asRate = schema.Bool(
         title=_t(u'Rate?'),
         group=_t('Target'))
