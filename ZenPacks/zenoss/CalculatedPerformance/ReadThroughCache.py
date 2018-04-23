@@ -1,9 +1,11 @@
+##############################################################################
 #
-# Copyright (C) Zenoss, Inc. 2014-2017, all rights reserved.
+# Copyright (C) Zenoss, Inc. 2014-2018, all rights reserved.
 #
 # This content is made available according to terms specified in
 # License.zenoss under the directory where your Zenoss product is installed.
 #
+##############################################################################
 
 from collections import defaultdict
 from datetime import datetime, timedelta
@@ -40,7 +42,7 @@ from twisted.internet.defer import inlineCallbacks
 from Products.ZenCollector.interfaces import IDataService
 from Products.ZenUtils.GlobalConfig import getGlobalConfiguration
 from Products.ZenUtils.Executor import TwistedExecutor
-from ZenPacks.zenoss.CalculatedPerformance.utils import getTargetId
+from ZenPacks.zenoss.CalculatedPerformance.utils import get_target_id
 from zope.component import getUtility
 
 log = logging.getLogger('zen.ReadThroughCache')
@@ -139,7 +141,7 @@ class ReadThroughCache(object):
                                                                    targetConfig)
             except StandardError as ex:
                 msg = "Failure reading configured datapoint %s_%s on target %s" % \
-                      (datasource, datapoint, getTargetId(targetConfig))
+                      (datasource, datapoint, get_target_id(targetConfig))
                 errors.append((ex, msg))
         return {k: v for k, v in valueMap.items() if v is not None}, errors
 
@@ -164,7 +166,7 @@ class ReadThroughCache(object):
         """
         targetValue = targetConfig.get(self._targetKey, None)
         if not targetValue:
-            log.warn("No %s present for target %s" % (self._targetKey, getTargetId(targetConfig)))
+            log.warn("No %s present for target %s" % (self._targetKey, get_target_id(targetConfig)))
             return None
 
         cacheKey = self._getKey(datasource, datapoint, rra, targetValue)
@@ -184,7 +186,7 @@ class ReadThroughCache(object):
         else:
             log.debug(
                 "Last value for target %s not present for datapoint %s_%s",
-                getTargetId(targetConfig), datasource, datapoint)
+                get_target_id(targetConfig), datasource, datapoint)
 
     def invalidate(self, key=None):
         if key is not None:

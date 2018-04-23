@@ -1,9 +1,11 @@
+##############################################################################
 #
-# Copyright (C) Zenoss, Inc. 2014-2017, all rights reserved.
+# Copyright (C) Zenoss, Inc. 2014-2018, all rights reserved.
 #
 # This content is made available according to terms specified in
 # License.zenoss under the directory where your Zenoss product is installed.
 #
+##############################################################################
 
 from collections import defaultdict
 from itertools import chain, izip
@@ -22,7 +24,8 @@ from Products.ZenUtils.Utils import monkeypatch
 from Products.Zuul import IInfo
 from ZenPacks.zenoss.CalculatedPerformance import operations
 from ZenPacks.zenoss.CalculatedPerformance.ReadThroughCache import getReadThroughCache
-from ZenPacks.zenoss.CalculatedPerformance.utils import toposort, grouper, dotTraverse, getVarNames, createDeviceDictionary, dsKey
+from ZenPacks.zenoss.CalculatedPerformance.utils import (
+    toposort, grouper, dotTraverse, getVarNames, createDeviceDictionary, get_ds_key)
 from ZenPacks.zenoss.PythonCollector.datasources.PythonDataSource \
     import PythonDataSourcePlugin
 from ZenPacks.zenoss.CalculatedPerformance.AggregatingDataPoint import AggregatingDataPoint
@@ -205,7 +208,7 @@ class AggregatingDataSourcePlugin(object):
 
         if not targetValues:
             if targets:
-                msg = "No target values collected for datasource %s" % dsKey(datasource)
+                msg = "No target values collected for datasource %s" % get_ds_key(datasource)
                 collectedEvents.append({
                     'summary': msg,
                     'eventKey': 'aggregatingDataSourcePlugin_novalues',
@@ -481,7 +484,7 @@ class CalculatedDataSourcePlugin(object):
                     logMethod(msg + "\n%s", ex)
             else:
                 logMethod = log.warn if debug else log.debug
-                logMethod("Can't get RRD values for EXPR: %s --> DS: %s" % (expression, dsKey(datasource)))
+                logMethod("Can't get RRD values for EXPR: %s --> DS: %s" % (expression, get_ds_key(datasource)))
 
             if result is not None:
                 collectedValues.setdefault(datasource.component, {})
@@ -555,18 +558,17 @@ class DerivedDataSourceProxyingPlugin(PythonDataSourcePlugin):
         collectedValues = {}
         collectedMaps = []
 
-        datasourcesByKey = {dsKey(ds): ds for ds in config.datasources}
+        sorted_datasources = list(toposort(config.datasources))
+
         # if we are able prefetch all the metrics that we can
         if hasattr(self.rrdcache, "batchFetchMetrics"):
-            datasources = [datasourcesByKey.get(ds) for ds in toposort(config.datasources, datasourcesByKey) if datasourcesByKey.get(ds)]
-            yield self.rrdcache.batchFetchMetrics(datasources)
+            yield self.rrdcache.batchFetchMetrics(sorted_datasources)
 
         startCollectTime = time.time()
         sourcetypes = defaultdict(int)
-        for dskey in toposort(config.datasources, datasourcesByKey):
-            datasource = datasourcesByKey.get(dskey, None)
-            if datasource is None or \
-                    'datasourceClassName' not in datasource.params or \
+
+        for datasource in sorted_datasources:
+            if 'datasourceClassName' not in datasource.params or \
                     datasource.params['datasourceClassName'] not in DerivedProxyMap:
                 #Not our datasource, it's a dependency from elsewhere
                 #log.warn("not using ds: %s %s %s", dskey, datasource, datasource.params.__dict__)

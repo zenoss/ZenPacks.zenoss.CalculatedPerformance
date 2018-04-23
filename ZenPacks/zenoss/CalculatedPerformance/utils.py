@@ -1,68 +1,85 @@
+##############################################################################
 #
-# Copyright (C) Zenoss, Inc. 2014, all rights reserved.
+# Copyright (C) Zenoss, Inc. 2014-2018, all rights reserved.
 #
 # This content is made available according to terms specified in
 # License.zenoss under the directory where your Zenoss product is installed.
 #
+##############################################################################
+
 from functools import partial
 from pprint import pformat
 import itertools
 import keyword
 import re
+
 from Products.ZenModel.DeviceHW import DeviceHW
 from Products.ZenModel.OperatingSystem import OperatingSystem
 from Products.ZenModel.ZenModelRM import ZenModelRM
 
 
-def dsKey(ds):
-    return '%s_%s:%s' % (
-        ds.device,
-        ds.component or '',
-        ds.datasource
-    )
+def get_ds_key(ds):
+    return '{device}_{component}:{datasource}'.format(
+        device=ds.device,
+        component=ds.component or '',
+        datasource=ds.datasource)
 
 
-def toposort(datasources, datasourcesByKey):
-    """
-    A leaf-first topological sort on dependencies
-    """
-    depDict = {}
-
-    # Find all items that don't depend on anything
-    for ds in datasources:
-        targetKeys = set()
-        dskey = dsKey(ds)
-        for target in ds.params.get('targets', []):
-            targetElementId = getTargetId(target)
-            for targetDatapoint in ds.params.get('targetDatapoints', []):
-                tkey = '%s:%s' % (targetElementId, targetDatapoint[0])
-                if tkey == dskey:
-                    continue
-                targetKeys.add(tkey)
-                if not datasourcesByKey.has_key(tkey):
-                    depDict[tkey] = set()
-        depDict[dsKey(ds)] = targetKeys
-
-    while True:
-        ordered = set(item for item, dep in depDict.iteritems() if not dep)
-        if not ordered:
-            break
-        for o in ordered:
-            yield o
-        depDict = {item: (dep - ordered)
-                for item, dep in depDict.iteritems()
-                    if item not in ordered}
-
-    if depDict:
-        raise Exception("Cyclic dependencies exist among these items:\n%s" % '\n'.join(
-            repr(x) for x in depDict.iteritems()))
-
-
-def getTargetId(target):
+def get_target_id(target):
     if 'device' in target:
-        return '%s_%s' % (target['device'].get('id', ''), target.get('id', ''))
+        return '{device_id}_{target_id}'.format(
+            device_id=target['device'].get('id', ''),
+            target_id=target.get('id', ''))
     else:
         return target.get('id', '') + '_'
+
+
+def toposort(datasources):
+    """A leaf-first topological sort on dependencies."""
+    datasources_by_key = {get_ds_key(ds): ds for ds in datasources}
+    dependencies = {}
+
+    # Find all items that don't depend on anything.
+    for ds_key, ds in datasources_by_key.iteritems():
+        target_keys = set()
+
+        for target_dp in ds.params.get('targetDatapoints', []):
+            target_ds, _, _, _, targets = target_dp
+            for target in targets:
+                target_key = '{}:{}'.format(
+                    get_target_id(target), target_ds)
+
+                if target_key == ds_key:
+                    continue
+
+                target_keys.add(target_key)
+
+                if target_key not in datasources_by_key:
+                    dependencies[target_key] = set()
+
+                dependencies[ds_key] = target_keys
+
+    while True:
+        ordered_ds_keys = set(
+            item for item, dep in dependencies.iteritems() if not dep)
+
+        if not ordered_ds_keys:
+            break
+
+        for ds_key in ordered_ds_keys:
+            ds = datasources_by_key.get(ds_key)
+            if ds:
+                yield ds
+
+        dependencies = {
+            item: (dep - ordered_ds_keys)
+            for item, dep in dependencies.iteritems()
+            if item not in ordered_ds_keys}
+
+    if dependencies:
+        raise Exception(
+            "Cyclic dependencies exist among these items:\n%s" % '\n'.join(
+                repr(x) for x in dependencies.iteritems()))
 
 
 def grouper(n, iterable):
