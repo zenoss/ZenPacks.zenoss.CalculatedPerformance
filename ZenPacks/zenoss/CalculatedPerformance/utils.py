@@ -99,16 +99,21 @@ class SimpleObject(object):
         return 'SimpleObject: %s' % pformat(self.__dict__)
 
 
-# These methods will be added to the evaluation locals for the calculated expressions
+# These methods will be added to the evaluation locals
+# for the calculated expressions.
+
 def pct(numerator, denominator):
     """
-    This method calculates the percentage of the numerator and denominator, which
-    can be either numerics or lists of numerics. None is filtered out.
+    This method calculates the percentage of the numerator and denominator,
+    which can be either numerics or lists of numerics. None is filtered out.
     The value 0.0 is returned if the denominatorList sums to zero.
 
     sum(numerator) / sum(denominator) * 100.0
+
     """
-    bottom = denominator if isinstance(denominator, (list, tuple)) else [denominator]
+    bottom = denominator if isinstance(
+        denominator, (list, tuple)) else [denominator]
+
     denominator = sum(x for x in bottom if x is not None)
     if denominator == 0.0:
         return 0.0
@@ -120,8 +125,10 @@ def pct(numerator, denominator):
 
 
 def avg(dpList):
-    """
-    Average a list of datapoints.  A list with no non-None items has an average of zero.
+    """Average a list of datapoints.
+
+    A list with no non-None items has an average of zero.
+
     """
     if not dpList:
         return 0.0
@@ -166,8 +173,11 @@ varNameRe = re.compile(
     r"(?<=datapoint\[['\"])[^'\"]+(?=['\"]\])|"  # datapoint['dpname']
     r"[A-Za-z][A-Za-z0-9_\.]*")  # dpname
 
+
+# 'x', 'y', 'i', 'j' are not keywords, but will be ignored,
+# so that lists can be used.
 _reserved = ['avg', 'pct', 'rrd_paths', 'datapoint'] + \
-            ['x', 'y', 'i', 'j'] # These are not keywords, but will be ignored so that lists can be used
+            ['x', 'y', 'i', 'j']
 
 
 def isReserved(name):
@@ -177,7 +187,9 @@ def isReserved(name):
 
 
 def getVarNames(expression):
-    return itertools.ifilterfalse(isReserved, varNameRe.findall(expression))
+    return itertools.ifilterfalse(
+        isReserved,
+        varNameRe.findall(expression))
 
 
 def _getAndCall(obj, attr, default=None):
@@ -199,13 +211,15 @@ def _maybeChain(iterables):
         else:
             yield it
 
+
 def dotTraverse(base, path):
-    """
-    Traverse object attributes with a . separating attributes.
+    """Traverse object attributes with a . separating attributes.
+
     e.g., base=find("deviceId") ; dotTraverse(base, "hw.totalMemory")
         --> 2137460736
     Callable attributes along the chain will be called with no arguments,
     except for DeviceHW and OperatingSystem instances.
+
     """
     if not path:
         return None
@@ -223,11 +237,12 @@ def dotTraverse(base, path):
         if hasattr(base, attr):
             base = _getAndCall(base, attr)
         elif hasattr(base, '__iter__') and not isinstance(base, ZenModelRM):
-            #if iterable, get the attr for each and chain it
+            # If iterable, get the attr for each and chain it.
             getFunc = partial(_getAndCall, attr=attr, default=None)
-            base = list(x for x in _maybeChain(map(getFunc, base)) if x is not None)
+            base = list(
+                x for x in _maybeChain(map(getFunc, base))
+                if x is not None)
         else:
             base = None
-
 
     return base

@@ -122,12 +122,15 @@ class TestUtils(BaseTestCase):
         self.assertEqual(get_target_id({}), '_')
         self.assertEqual(get_target_id({'device': {}}), '_')
         self.assertEqual(get_target_id({'id': 'test'}), 'test_')
-        self.assertEqual(get_target_id({'id': 'testc', 'device': {}}), '_testc')
-        self.assertEqual(get_target_id({'id': 'testc', 'device': {'id': 'test'}}), 'test_testc')
+        self.assertEqual(
+            get_target_id({'id': 'testc', 'device': {}}), '_testc')
+        self.assertEqual(
+            get_target_id(
+                {'id': 'testc', 'device': {'id': 'test'}}), 'test_testc')
 
     def _getSimpleObject(self, attrs={}):
         obj = SimpleObject()
-        for k,v in attrs.items():
+        for k, v in attrs.items():
             setattr(obj, k, v)
         return obj
 
@@ -149,15 +152,15 @@ class TestUtils(BaseTestCase):
         testObj.subobj7.objfuncSelf = lambda: testObj
         testObj.objfunc8 = lambda: testObj.subobj7
         testObj.chainfunc9 = lambda: [
-            self._getSimpleObject({'subchain': [1,2,3]}),
+            self._getSimpleObject({'subchain': [1, 2, 3]}),
             self._getSimpleObject({'subchain': 4}),
             self._getSimpleObject({'subchain': None}),
             self._getSimpleObject({'subchain': [None]}),
-            self._getSimpleObject({'subchain': [5,6]}),
+            self._getSimpleObject({'subchain': [5, 6]}),
             self._getSimpleObject({'subchain': 7}),
         ]
         testObj.chainfunc10 = lambda: [
-            self._getSimpleObject({'subchain': lambda: [1,2,3]}),
+            self._getSimpleObject({'subchain': lambda: [1, 2, 3]}),
             self._getSimpleObject({'subchain': lambda: 4}),
             self._getSimpleObject({'subchain': lambda: None}),
             self._getSimpleObject({'subchain': lambda: [None]}),
@@ -210,12 +213,24 @@ class TestUtils(BaseTestCase):
 
     def testDotTraverseCallableAttributes(self):
         testObj = self._getTestObj()
-        self.assertEqual(dotTraverse(testObj, 'strfunc4'), testObj.strfunc4())
-        self.assertEqual(dotTraverse(testObj, 'here.strfunc4'), testObj.strfunc4())
-        self.assertEqual(dotTraverse(testObj, 'intfunc5'), testObj.intfunc5())
-        self.assertEqual(dotTraverse(testObj, 'here.intfunc5'), testObj.intfunc5())
-        self.assertEqual(dotTraverse(testObj, 'floatfunc6'), testObj.floatfunc6())
-        self.assertEqual(dotTraverse(testObj, 'here.floatfunc6'), testObj.floatfunc6())
+        self.assertEqual(
+            dotTraverse(testObj, 'strfunc4'),
+            testObj.strfunc4())
+        self.assertEqual(
+            dotTraverse(testObj, 'here.strfunc4'),
+            testObj.strfunc4())
+        self.assertEqual(
+            dotTraverse(testObj, 'intfunc5'),
+            testObj.intfunc5())
+        self.assertEqual(
+            dotTraverse(testObj, 'here.intfunc5'),
+            testObj.intfunc5())
+        self.assertEqual(
+            dotTraverse(testObj, 'floatfunc6'),
+            testObj.floatfunc6())
+        self.assertEqual(
+            dotTraverse(testObj, 'here.floatfunc6'),
+            testObj.floatfunc6())
 
     def testDotTraverseSubObjectAttributes(self):
         testObj = self._getTestObj()
@@ -225,58 +240,134 @@ class TestUtils(BaseTestCase):
         self.assertEqual(dotTraverse(testObj, 'here.subobj7.'), None)
         self.assertEqual(dotTraverse(testObj, 'subobj7.invalid'), None)
         self.assertEqual(dotTraverse(testObj, 'here.subobj7.invalid'), None)
-        self.assertEqual(dotTraverse(testObj, 'subobj7.str10'), testObj.subobj7.str10)
-        self.assertEqual(dotTraverse(testObj, 'here.subobj7.str10'), testObj.subobj7.str10)
-        self.assertEqual(dotTraverse(testObj, 'subobj7.int20'), testObj.subobj7.int20)
-        self.assertEqual(dotTraverse(testObj, 'here.subobj7.int20'), testObj.subobj7.int20)
-        self.assertEqual(dotTraverse(testObj, 'subobj7.float30'), testObj.subobj7.float30)
-        self.assertEqual(dotTraverse(testObj, 'here.subobj7.float30'), testObj.subobj7.float30)
+
+        self.assertEqual(
+            dotTraverse(testObj, 'subobj7.str10'), testObj.subobj7.str10)
+        self.assertEqual(
+            dotTraverse(testObj, 'here.subobj7.str10'), testObj.subobj7.str10)
+        self.assertEqual(
+            dotTraverse(testObj, 'subobj7.int20'), testObj.subobj7.int20)
+        self.assertEqual(
+            dotTraverse(testObj, 'here.subobj7.int20'), testObj.subobj7.int20)
+        self.assertEqual(
+            dotTraverse(testObj, 'subobj7.float30'), testObj.subobj7.float30)
+        self.assertEqual(
+            dotTraverse(
+                testObj, 'here.subobj7.float30'), testObj.subobj7.float30)
 
     def testDotTraverseSubObjectCallableAttributes(self):
         testObj = self._getTestObj()
-        self.assertEqual(dotTraverse(testObj, 'subobj7.strfunc40'), testObj.subobj7.strfunc40())
-        self.assertEqual(dotTraverse(testObj, 'here.subobj7.strfunc40'), testObj.subobj7.strfunc40())
-        self.assertEqual(dotTraverse(testObj, 'subobj7.intfunc50'), testObj.subobj7.intfunc50())
-        self.assertEqual(dotTraverse(testObj, 'here.subobj7.intfunc50'), testObj.subobj7.intfunc50())
-        self.assertEqual(dotTraverse(testObj, 'subobj7.floatfunc60'), testObj.subobj7.floatfunc60())
-        self.assertEqual(dotTraverse(testObj, 'here.subobj7.floatfunc60'), testObj.subobj7.floatfunc60())
-        self.assertEqual(dotTraverse(testObj, 'subobj7.objfuncSelf'), testObj)
-        self.assertEqual(dotTraverse(testObj, 'here.subobj7.objfuncSelf'), testObj)
-        self.assertEqual(dotTraverse(testObj, 'subobj7.objfuncSelf.subobj7.objfuncSelf'), testObj)
-        self.assertEqual(dotTraverse(testObj, 'here.subobj7.objfuncSelf.subobj7.objfuncSelf'), testObj)
-        self.assertEqual(dotTraverse(testObj, 'subobj7.objfuncSelf.subobj7.objfuncSelf.subobj7.objfuncSelf'), testObj)
-        self.assertEqual(dotTraverse(testObj, 'here.subobj7.objfuncSelf.subobj7.objfuncSelf.subobj7.objfuncSelf'), testObj)
+        self.assertEqual(
+            dotTraverse(testObj, 'subobj7.strfunc40'),
+            testObj.subobj7.strfunc40())
+        self.assertEqual(
+            dotTraverse(testObj, 'here.subobj7.strfunc40'),
+            testObj.subobj7.strfunc40())
+        self.assertEqual(
+            dotTraverse(testObj, 'subobj7.intfunc50'),
+            testObj.subobj7.intfunc50())
+        self.assertEqual(
+            dotTraverse(testObj, 'here.subobj7.intfunc50'),
+            testObj.subobj7.intfunc50())
+        self.assertEqual(
+            dotTraverse(testObj, 'subobj7.floatfunc60'),
+            testObj.subobj7.floatfunc60())
+        self.assertEqual(
+            dotTraverse(testObj, 'here.subobj7.floatfunc60'),
+            testObj.subobj7.floatfunc60())
+        self.assertEqual(
+            dotTraverse(testObj, 'subobj7.objfuncSelf'),
+            testObj)
+        self.assertEqual(
+            dotTraverse(testObj, 'here.subobj7.objfuncSelf'),
+            testObj)
+        self.assertEqual(
+            dotTraverse(testObj, 'subobj7.objfuncSelf.subobj7.objfuncSelf'),
+            testObj)
+        self.assertEqual(
+            dotTraverse(testObj, 'here.subobj7.objfuncSelf.subobj7.objfuncSelf'),
+            testObj)
+        self.assertEqual(
+            dotTraverse(testObj, 'subobj7.objfuncSelf.subobj7.objfuncSelf.subobj7.objfuncSelf'),
+            testObj)
+        self.assertEqual(
+            dotTraverse(testObj, 'here.subobj7.objfuncSelf.subobj7.objfuncSelf.subobj7.objfuncSelf'),
+            testObj)
 
     def testDotTraverseCallableSubObjectAttributes(self):
         testObj = self._getTestObj()
-        self.assertEqual(dotTraverse(testObj, 'objfunc8.str10'), testObj.subobj7.str10)
-        self.assertEqual(dotTraverse(testObj, 'here.objfunc8.str10'), testObj.subobj7.str10)
-        self.assertEqual(dotTraverse(testObj, 'objfunc8.int20'), testObj.subobj7.int20)
-        self.assertEqual(dotTraverse(testObj, 'here.objfunc8.int20'), testObj.subobj7.int20)
-        self.assertEqual(dotTraverse(testObj, 'objfunc8.float30'), testObj.subobj7.float30)
-        self.assertEqual(dotTraverse(testObj, 'here.objfunc8.float30'), testObj.subobj7.float30)
+        self.assertEqual(
+            dotTraverse(testObj, 'objfunc8.str10'),
+            testObj.subobj7.str10)
+        self.assertEqual(
+            dotTraverse(testObj, 'here.objfunc8.str10'),
+            testObj.subobj7.str10)
+        self.assertEqual(
+            dotTraverse(testObj, 'objfunc8.int20'),
+            testObj.subobj7.int20)
+        self.assertEqual(
+            dotTraverse(testObj, 'here.objfunc8.int20'),
+            testObj.subobj7.int20)
+        self.assertEqual(
+            dotTraverse(testObj, 'objfunc8.float30'),
+            testObj.subobj7.float30)
+        self.assertEqual(
+            dotTraverse(testObj, 'here.objfunc8.float30'),
+            testObj.subobj7.float30)
 
     def testDotTraverseCallableSubObjectCallableAttributes(self):
         testObj = self._getTestObj()
-        self.assertEqual(dotTraverse(testObj, 'objfunc8.strfunc40'), testObj.subobj7.strfunc40())
-        self.assertEqual(dotTraverse(testObj, 'here.objfunc8.strfunc40'), testObj.subobj7.strfunc40())
-        self.assertEqual(dotTraverse(testObj, 'objfunc8.intfunc50'), testObj.subobj7.intfunc50())
-        self.assertEqual(dotTraverse(testObj, 'here.objfunc8.intfunc50'), testObj.subobj7.intfunc50())
-        self.assertEqual(dotTraverse(testObj, 'objfunc8.floatfunc60'), testObj.subobj7.floatfunc60())
-        self.assertEqual(dotTraverse(testObj, 'here.objfunc8.floatfunc60'), testObj.subobj7.floatfunc60())
-        self.assertEqual(dotTraverse(testObj, 'objfunc8.objfuncSelf'), testObj)
-        self.assertEqual(dotTraverse(testObj, 'here.objfunc8.objfuncSelf'), testObj)
-        self.assertEqual(dotTraverse(testObj, 'objfunc8.objfuncSelf.objfunc8.objfuncSelf'), testObj)
-        self.assertEqual(dotTraverse(testObj, 'here.objfunc8.objfuncSelf.objfunc8.objfuncSelf'), testObj)
-        self.assertEqual(dotTraverse(testObj, 'objfunc8.objfuncSelf.objfunc8.objfuncSelf.objfunc8.objfuncSelf'), testObj)
-        self.assertEqual(dotTraverse(testObj, 'here.objfunc8.objfuncSelf.objfunc8.objfuncSelf.objfunc8.objfuncSelf'), testObj)
+        self.assertEqual(
+            dotTraverse(testObj, 'objfunc8.strfunc40'),
+            testObj.subobj7.strfunc40())
+        self.assertEqual(
+            dotTraverse(testObj, 'here.objfunc8.strfunc40'),
+            testObj.subobj7.strfunc40())
+        self.assertEqual(
+            dotTraverse(testObj, 'objfunc8.intfunc50'),
+            testObj.subobj7.intfunc50())
+        self.assertEqual(
+            dotTraverse(testObj, 'here.objfunc8.intfunc50'),
+            testObj.subobj7.intfunc50())
+        self.assertEqual(
+            dotTraverse(testObj, 'objfunc8.floatfunc60'),
+            testObj.subobj7.floatfunc60())
+        self.assertEqual(
+            dotTraverse(testObj, 'here.objfunc8.floatfunc60'),
+            testObj.subobj7.floatfunc60())
+        self.assertEqual(
+            dotTraverse(testObj, 'objfunc8.objfuncSelf'),
+            testObj)
+        self.assertEqual(
+            dotTraverse(testObj, 'here.objfunc8.objfuncSelf'),
+            testObj)
+        self.assertEqual(
+            dotTraverse(testObj, 'objfunc8.objfuncSelf.objfunc8.objfuncSelf'),
+            testObj)
+        self.assertEqual(
+            dotTraverse(testObj, 'here.objfunc8.objfuncSelf.objfunc8.objfuncSelf'),
+            testObj)
+        self.assertEqual(
+            dotTraverse(testObj, 'objfunc8.objfuncSelf.objfunc8.objfuncSelf.objfunc8.objfuncSelf'),
+            testObj)
+        self.assertEqual(
+            dotTraverse(testObj, 'here.objfunc8.objfuncSelf.objfunc8.objfuncSelf.objfunc8.objfuncSelf'),
+            testObj)
 
     def testDotTraverseCallableChain(self):
         testObj = self._getTestObj()
-        self.assertEqual(dotTraverse(testObj, 'chainfunc9.subchain'), [1, 2, 3, 4, 5, 6, 7])
-        self.assertEqual(dotTraverse(testObj, 'here.chainfunc9.subchain'), [1, 2, 3, 4, 5, 6, 7])
-        self.assertEqual(dotTraverse(testObj, 'chainfunc10.subchain'), [1, 2, 3, 4, 5, 6, 7])
-        self.assertEqual(dotTraverse(testObj, 'here.chainfunc10.subchain'), [1, 2, 3, 4, 5, 6, 7])
+        self.assertEqual(
+            dotTraverse(testObj, 'chainfunc9.subchain'),
+            [1, 2, 3, 4, 5, 6, 7])
+        self.assertEqual(
+            dotTraverse(testObj, 'here.chainfunc9.subchain'),
+            [1, 2, 3, 4, 5, 6, 7])
+        self.assertEqual(
+            dotTraverse(testObj, 'chainfunc10.subchain'),
+            [1, 2, 3, 4, 5, 6, 7])
+        self.assertEqual(
+            dotTraverse(testObj, 'here.chainfunc10.subchain'),
+            [1, 2, 3, 4, 5, 6, 7])
 
 
 def test_suite():

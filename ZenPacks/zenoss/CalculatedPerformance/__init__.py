@@ -1,24 +1,28 @@
+##############################################################################
 #
-# Copyright (C) Zenoss, Inc. 2014-2017, all rights reserved.
+# Copyright (C) Zenoss, Inc. 2014-2018, all rights reserved.
 #
 # This content is made available according to terms specified in
 # License.zenoss under the directory where your Zenoss product is installed.
 #
-
-import logging
-log = logging.getLogger('zen.CalculatedPerformance')
+##############################################################################
 
 import Globals
+
+import logging
 
 from Products.ZenModel.Device import Device
 from Products.ZenModel.ZenPack import ZenPack as ZenPackBase
 from Products.ZenRelations.RelSchema import ToManyCont, ToOne
 from Products.ZenUtils.Utils import unused
 from Products.Zuul.interfaces import ICatalogTool
+
 from ZenPacks.zenoss.CalculatedPerformance.ElementPool import ElementPool
 
 unused(Globals)
 
+
+LOG = logging.getLogger('zen.CalculatedPerformance')
 
 ZENPACK_NAME = 'ZenPacks.zenoss.CalculatedPerformance'
 
@@ -57,12 +61,12 @@ class ZenPack(ZenPackBase):
     def install(self, app):
         super(ZenPack, self).install(app)
 
-        log.info('Adding ElementPool relationships to existing devices/components')
+        LOG.info('Adding ElementPool relationships to existing devices/components')
         self._buildDeviceRelations()
 
     def remove(self, app, leaveObjects=False):
         if not leaveObjects:
-            log.info('Removing all ElementPool components')
+            LOG.info('Removing all ElementPool components')
             cat = ICatalogTool(app.zport.dmd)
             for brain in cat.search(types=NEW_COMPONENT_TYPES):
                 component = brain.getObject()
@@ -70,10 +74,10 @@ class ZenPack(ZenPackBase):
 
             # Remove our relations additions.
             for relname, _, _, _, _, containingClass in NEW_DEVICE_RELATIONS:
-                containingClass._relations = tuple(
-                    [x for x in containingClass._relations if x[0] != relname])
+                containingClass._relations = tuple([
+                    x for x in containingClass._relations if x[0] != relname])
 
-            log.info('Removing ElementPool device/component relationships')
+            LOG.info('Removing ElementPool device/component relationships')
             self._buildDeviceRelations()
 
         super(ZenPack, self).remove(app, leaveObjects=leaveObjects)
@@ -81,6 +85,7 @@ class ZenPack(ZenPackBase):
     def _buildDeviceRelations(self):
         for d in self.dmd.Devices.getSubDevicesGen():
             d.buildRelations()
+
 
 def addAggregatingPool(device, id):
     instance = ElementPool(id)
