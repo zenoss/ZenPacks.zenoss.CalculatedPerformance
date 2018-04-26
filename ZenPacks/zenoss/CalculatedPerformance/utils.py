@@ -7,11 +7,13 @@
 #
 ##############################################################################
 
-from functools import partial
+from functools import partial, wraps
 from pprint import pformat
 import itertools
 import keyword
+import logging
 import re
+import time
 
 from Products.ZenModel.DeviceHW import DeviceHW
 from Products.ZenModel.OperatingSystem import OperatingSystem
@@ -246,3 +248,35 @@ def dotTraverse(base, path):
             base = None
 
     return base
+
+
+def async_timeit(log, msg_prefix='', msg_suffix='', threshold=60):
+    """Log execution time of the decorated function."""
+    msg = "took %.1f seconds"
+    if msg_prefix:
+        msg = "{} {}".format(msg_prefix, msg)
+    if msg_suffix:
+        msg = "{} {}".format(msg, msg_suffix)
+
+    def log_execution_time(result, start_time):
+        exec_time = time.time() - start_time
+        log_func = log.warning if exec_time > threshold else log.debug
+        log_func(msg, exec_time)
+        return result
+
+    def func_decorator(func):
+        @wraps(func)
+        def func_wrapper(*args, **kw):
+            start_time = time.time()
+            deferred = func(*args, **kw)
+            deferred.addBoth(log_execution_time, start_time=start_time)
+            return deferred
+        return func_wrapper
+
+    return func_decorator
+
+
+class ContextLogAdapter(logging.LoggerAdapter):
+
+    def process(self, msg, kwargs):
+        return '{} {}'.format(self.extra['context'], msg), kwargs

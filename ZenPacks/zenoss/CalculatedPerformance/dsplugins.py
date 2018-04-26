@@ -28,16 +28,16 @@ from ZenPacks.zenoss.PythonCollector.datasources.PythonDataSource \
     import PythonDataSourcePlugin
 
 from ZenPacks.zenoss.CalculatedPerformance import operations
+from ZenPacks.zenoss.CalculatedPerformance.AggregatingDataPoint \
+    import AggregatingDataPoint
 from ZenPacks.zenoss.CalculatedPerformance.ReadThroughCache \
     import getReadThroughCache
 from ZenPacks.zenoss.CalculatedPerformance.utils import (
     toposort, grouper, dotTraverse, getVarNames, createDeviceDictionary,
-    get_ds_key)
-from ZenPacks.zenoss.CalculatedPerformance.AggregatingDataPoint \
-    import AggregatingDataPoint
+    get_ds_key, async_timeit, ContextLogAdapter)
 
 
-LOG = logging.getLogger('zen.CalculatingPlugin')
+LOG = logging.getLogger('zen.CalculatedPerformance.dsplugins')
 
 
 RRD_READ_CHUNKS = 20
@@ -567,7 +567,10 @@ class DerivedDataSourceProxyingPlugin(PythonDataSourcePlugin):
         lambda x: getattr(x, 'proxy_attributes', ()),
         DerivedProxyMap.values())))
 
-    def __init__(self):
+    def __init__(self, config):
+        self.log = ContextLogAdapter(
+            LOG, {'context': '{} ({}):'.format(
+                self.__class__.__name__, config.id)})
         # This is a per-run cache of latest RRD values by path+RRA,
         # used in case of multiple different aggregated datapoints
         # on a single target datasource.
@@ -587,6 +590,7 @@ class DerivedDataSourceProxyingPlugin(PythonDataSourcePlugin):
 
         You can omit this method from your implementation entirely if this
         default uniqueness behavior fits your needs. In many cases it will.
+
         """
         return (
             context.device().id,
@@ -604,38 +608,34 @@ class DerivedDataSourceProxyingPlugin(PythonDataSourcePlugin):
         If you only need extra
         information at the device level it is easier to just use
         proxy_attributes as mentioned above.
+
         """
         ds_plugin = DerivedProxyMap[datasource.__class__.__name__]
         proxy_params = ds_plugin.__class__.params(datasource, context)
         proxy_params['datasourceClassName'] = datasource.__class__.__name__
         return proxy_params
 
+    @async_timeit(LOG, msg_prefix="Metric collection")
     @inlineCallbacks
-    def collect(self, config):
+    def _collect(self, config, datasources):
+        self.log.debug("Collecting metrics")
+
         collectedEvents = []
         collectedValues = {}
         collectedMaps = []
+        collected_ds_count = defaultdict(int)
 
-        sorted_datasources = list(toposort(config.datasources))
-
-        # If we are able prefetch all the metrics that we can.
-        if hasattr(self.rrdcache, "batchFetchMetrics"):
-            yield self.rrdcache.batchFetchMetrics(sorted_datasources)
-
-        startCollectTime = time.time()
-        sourcetypes = defaultdict(int)
-
-        for datasource in sorted_datasources:
-            if 'datasourceClassName' not in datasource.params or \
-                    datasource.params['datasourceClassName'] not in DerivedProxyMap:
+        for ds in datasources:
+            if 'datasourceClassName' not in ds.params or \
+                    ds.params['datasourceClassName'] not in DerivedProxyMap:
                 # Not our datasource, it's a dependency from elsewhere.
                 continue
 
             collectionTime = time.time()
 
-            ds_plugin = DerivedProxyMap[datasource.params['datasourceClassName']]
+            ds_plugin = DerivedProxyMap[ds.params['datasourceClassName']]
             dsResult = yield ds_plugin.collect(
-                config, datasource, self.rrdcache, int(collectionTime))
+                config, ds, self.rrdcache, int(collectionTime))
 
             if dsResult:
                 # Data for this collection won't be written until
@@ -645,13 +645,13 @@ class DerivedDataSourceProxyingPlugin(PythonDataSourcePlugin):
                 # possible RRA. These values may be slightly inaccurate,
                 # as we're essentially always using the 'LAST' RRA.
                 resultValues = dsResult.get('values', {}).get(
-                    datasource.component, {})
+                    ds.component, {})
 
                 if resultValues:
                     collectedPoints = (
-                        p for p in datasource.points
+                        p for p in ds.points
                         if p.id in resultValues or '_'.join(
-                            (datasource.datasource, p.id)) in resultValues)
+                        (ds.datasource, p.id)) in resultValues)
 
                     for datapoint in collectedPoints:
                         rrdPath = datapoint.rrdPath.rsplit('/', 1)[0]
@@ -665,47 +665,53 @@ class DerivedDataSourceProxyingPlugin(PythonDataSourcePlugin):
                         value = (
                             resultValues.get(datapoint.id, None) or
                             resultValues.get('_'.join(
-                                (datasource.datasource, datapoint.id))))[0]
+                                (ds.datasource, datapoint.id))))[0]
 
                         for rra in ('AVERAGE', 'MIN', 'MAX', 'LAST'):
                             self.rrdcache.put(
-                                datasource.datasource, datapoint.id, rra,
+                                ds.datasource, datapoint.id, rra,
                                 rrdPath, contextUUID, value)
 
                 # Incorporate results returned from the proxied method.
                 collectedEvents.extend(dsResult.get('events', []))
                 collectedMaps.extend(dsResult.get('maps', []))
-                collectedValues.setdefault(datasource.component, {})
-                collectedValues[datasource.component].update(resultValues)
-                dsclassname = datasource.params['datasourceClassName']
-                sourcetypes[dsclassname] += 1
+                collectedValues.setdefault(ds.component, {})
+                collectedValues[ds.component].update(resultValues)
+                ds_class_name = ds.params['datasourceClassName']
+                collected_ds_count[ds_class_name] += 1
 
-        endCollectTime = time.time()
-        timeTaken = endCollectTime - startCollectTime
-        timeLogFn = LOG.debug
-        if timeTaken > 60.0:
-            timeLogFn = LOG.warn
+        self.log.debug("Collected datasources: %s", collected_ds_count)
 
-        timeLogFn(
-            "Took %.1f seconds to collect datasources: %s",
-            timeTaken, sourcetypes)
-
-        data = {
+        returnValue({
             'events': collectedEvents,
             'values': collectedValues,
-            'maps': collectedMaps}
+            'maps': collectedMaps})
+
+    @inlineCallbacks
+    def collect(self, config):
+        sorted_datasources = list(toposort(config.datasources))
+
+        # If we are able prefetch all the metrics that we can.
+        if hasattr(self.rrdcache, "batchFetchMetrics"):
+            yield self.rrdcache.batchFetchMetrics(sorted_datasources)
+
+        data = yield self._collect(config, sorted_datasources)
+
+        self.log.debug("Returned data: %s", data)
 
         returnValue(data)
 
     def onComplete(self, result, config):
         """Called last for success and error."""
-        # Clear our cached RRD data.
+        self.log.debug(
+            "Data collection completed, clearing out the cached metrics")
         self.rrdcache.invalidate()
 
         return result
 
     def cleanup(self, config):
         """Called when collector exits, or task is deleted or changed."""
+        self.log.debug("Clearing out the threshold cache")
         for datasource in config.datasources:
             for datapoint in datasource.points:
                 threshold_cache_key = getThresholdCacheKey(
