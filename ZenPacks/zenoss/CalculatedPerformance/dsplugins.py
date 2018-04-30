@@ -1,57 +1,72 @@
+##############################################################################
 #
-# Copyright (C) Zenoss, Inc. 2014-2017, all rights reserved.
+# Copyright (C) Zenoss, Inc. 2014-2018, all rights reserved.
 #
 # This content is made available according to terms specified in
 # License.zenoss under the directory where your Zenoss product is installed.
 #
+##############################################################################
 
 from collections import defaultdict
 from itertools import chain, izip
 from functools import partial
-
+from pprint import pformat
 import logging
 import time
 import traceback
-from pprint import pformat
-from twisted.internet.defer import inlineCallbacks, returnValue
-from Products import Zuul
+import pickle
 
+from twisted.internet.defer import inlineCallbacks, returnValue
+
+from Products import Zuul
 from Products.ZenEvents import ZenEventClasses
 from Products.ZenModel.DeviceComponent import DeviceComponent
 from Products.ZenUtils.Utils import monkeypatch
 from Products.Zuul import IInfo
-from ZenPacks.zenoss.CalculatedPerformance import operations
-from ZenPacks.zenoss.CalculatedPerformance.ReadThroughCache import getReadThroughCache
-from ZenPacks.zenoss.CalculatedPerformance.utils import toposort, grouper, dotTraverse, getVarNames, createDeviceDictionary, dsKey
+
 from ZenPacks.zenoss.PythonCollector.datasources.PythonDataSource \
     import PythonDataSourcePlugin
-from ZenPacks.zenoss.CalculatedPerformance.AggregatingDataPoint import AggregatingDataPoint
-import pickle
 
-log = logging.getLogger('zen.CalculatingPlugin')
+from ZenPacks.zenoss.CalculatedPerformance import operations
+from ZenPacks.zenoss.CalculatedPerformance.AggregatingDataPoint \
+    import AggregatingDataPoint
+from ZenPacks.zenoss.CalculatedPerformance.ReadThroughCache \
+    import getReadThroughCache
+from ZenPacks.zenoss.CalculatedPerformance.utils import (
+    toposort, grouper, dotTraverse, getVarNames, createDeviceDictionary,
+    get_ds_key, async_timeit, ContextLogAdapter)
+
+
+LOG = logging.getLogger('zen.CalculatedPerformance.dsplugins')
+
 
 RRD_READ_CHUNKS = 20
-
 # Map for lists of current values pre-aggregation, used to
 # decorate threshold violation events
 #
 # key: 'deviceid_componentid_eventKey'
 # value: map of target dev/component uuid + event key to
 #        last values (or deviation values) used for aggregation
-threshold_cache = {}
+THRESHOLD_CACHE = {}
+
+
 def getThresholdCacheKey(datasource, datapoint):
-    return '%s_%s_%s_%s' % (datasource.device, datasource.component,
-                            datasource.datasource, datapoint.id)
+    return '{device}_{component}_{datasource}_{datapoint}'.format(
+        device=datasource.device,
+        component=datasource.component,
+        datasource=datasource.datasource,
+        datapoint=datapoint.id)
 
 
 def getExtraTargets(extraContexts, context):
     """
-    for each path in extraContexts, this retrieves
+    For each path in extraContexts, this retrieves:
       1) the enclosing device (for path 'device')
       2) the other end of a ToOneRelationship
       3) a component in a ToManyContRelationship, by id or index
       4) either 2 or 3, but starting from the device containing the context,
-             if the path begins 'device/' and the context is a component
+           if the path begins 'device/' and the context is a component
+
     """
     targets = []
 
@@ -60,35 +75,49 @@ def getExtraTargets(extraContexts, context):
             targets.append(context.device())
             continue
 
-        logPreamble = "while looking for an extraContext for '%s' using path '%s'," % (context.id, path)
-        log_warn = partial(log.warn, "%s %s", logPreamble)
+        logPreamble = (
+            "While looking for an extraContext "
+            "for '{context_id}' using path '{path}',".format(
+                context_id=context.id, path=path))
+
+        log_warn = partial(LOG.warn, "%s %s", logPreamble)
 
         devPrefix = 'device/'
         pathContext = context.device() if path.startswith(devPrefix) else context
         relativePath = path[len(devPrefix):] if path.startswith(devPrefix) else path
 
-        toOneRels = [r for r
-                     in pathContext.objectValues(spec=('ToOneRelationship',))
-                     if r.id == relativePath]
+        toOneRels = [
+            r for r in pathContext.objectValues(spec=('ToOneRelationship',))
+            if r.id == relativePath]
 
         if toOneRels:
             target = toOneRels[0]()
             if target:
                 targets.append(target)
             else:
-                log_warn("relativePath '%s' led to an empty ToOne relationship on pathContext '%s', skipping." % (relativePath, pathContext.id))
+                log_warn(
+                    "relativePath '%s' led to an empty ToOne relationship "
+                    "on pathContext '%s', skipping.",
+                    relativePath, pathContext.id)
             continue
 
-        if relativePath.count('/') != 1 :
-            log_warn("relativePath '%s' does not lead to a ToOne relationship or an item in a ToManyContains relationship, skipping." % relativePath)
+        if relativePath.count('/') != 1:
+            log_warn(
+                "relativePath '%s' does not lead to a ToOne relationship or "
+                "an item in a ToManyContains relationship, skipping.",
+                relativePath)
             continue
 
         relname, extraId = relativePath.split('/')
-        rels = [r for r in pathContext.objectValues(spec=('ToManyContRelationship',))
-                if r.id == relname]
+        rels = [
+            r for r in pathContext.objectValues(spec=('ToManyContRelationship',))
+            if r.id == relname]
 
         if not rels:
-            log_warn("the relname '%s' in relativePath '%s' does not exist on pathContext '%s', skipping." % (relname, relativePath, pathContext.id))
+            log_warn(
+                "The relname '%s' in relativePath '%s' "
+                "does not exist on pathContext '%s', skipping.",
+                relname, relativePath, pathContext.id)
             continue
 
         rel = rels[0]
@@ -105,35 +134,44 @@ def getExtraTargets(extraContexts, context):
                 extraTarget = rel()[index]
                 targets.append(extraTarget)
             else:
-                log_warn("the contents of relationship '%s' on context '%s' is too short to get member '%s', skipping'" % (relname, pathContext.id, extraId))
+                log_warn(
+                    "The contents of relationship '%s' on context '%s' "
+                    "is too short to get member '%s', skipping'",
+                    relname, pathContext.id, extraId)
         else:
-            log_warn("the extraId '%s' in relativePath '%s' does not exist on the relationship '%s' on '%s', skipping." % (extraId, relativePath, relname, pathContext.id))
+            log_warn(
+                "The extraId '%s' in relativePath '%s' does not exist "
+                "on the relationship '%s' on '%s', skipping.",
+                extraId, relativePath, relname, pathContext.id)
 
     return targets
 
 
 def dsDescription(ds, devdict):
-    return """expression: %s
-dictionary: %s
-context device: %s
-context component: %s
-template: %s
-datasource: %s
-datapoint: %s""" % (
-        ds.params.get('expression', None),
-        pformat(devdict),
-        ds.device,
-        ds.component or '',
-        ds.params.get('template', None),
-        ds.datasource,
-        ds.points[0].id
-    )
+    return (
+        "expression: {expression} "
+        "dictionary: {dictionary} "
+        "context device: {device} "
+        "context component: {component} "
+        "template: {template} "
+        "datasource: {datasource} "
+        "datapoint: {datapoint}".format(
+            expression=ds.params.get('expression', None),
+            dictionary=pformat(devdict),
+            device=ds.device,
+            component=ds.component or '',
+            template=ds.params.get('template', None),
+            datasource=ds.datasource,
+            datapoint=ds.points[0].id))
 
 
 def targetInfo(target):
     """
-    Return a suitable target dictionary for Aggregate and Calculated target elements.
+    Return a suitable target dictionary for Aggregate
+    and Calculated target elements.
+
     Includes: uuid, name, uid, id, rrdpath, device
+
     """
     targetConfig = Zuul.marshal(IInfo(target), keys=('uuid', 'name', 'id'))
     targetConfig['rrdpath'] = target.rrdPath()
@@ -146,7 +184,9 @@ def handleArguments(targetArgValues, dpargs):
     tokens = dpargs.strip().split(',') if dpargs.strip() else []
     arguments = []
     for tok, x in izip(tokens, range(len(tokens))):
-        arguments.append(targetArgValues[x] if getVarNames(tok) else tok.strip())
+        arguments.append(
+            targetArgValues[x] if getVarNames(tok) else tok.strip())
+
     return arguments
 
 
@@ -155,7 +195,7 @@ class AggregatingDataSourcePlugin(object):
     @classmethod
     def params(cls, datasource, context):
         targetInfos = []
-        # add an id->contents map for each component/device
+        # Add an id->contents map for each component/device.
         for member in dotTraverse(context, datasource.targetMethod or '') or []:
             targetInfos.append(targetInfo(member))
 
@@ -165,21 +205,23 @@ class AggregatingDataSourcePlugin(object):
                 for att in getVarNames(datapoint.arguments.strip()):
                     targetArgValues.append(dotTraverse(context, att))
             else:
-                log.error("datasource %s has a datapoint of the wrong type %s" % (datasource, datapoint))
+                LOG.error(
+                    "Datasource %s has a datapoint of the wrong type %s",
+                    datasource, datapoint)
 
             # should be only datapoint, so ...
             break
 
         zDebug = context.getZ('zDatasourceDebugLogging')
         return dict(
-            targetDatapoints = [(datasource.targetDataSource,
-                                 datasource.targetDataPoint,
-                                 datasource.targetRRA or 'AVERAGE',
-                                 datasource.targetAsRate,
-                                 targetInfos)],
+            targetDatapoints=[(
+                datasource.targetDataSource,
+                datasource.targetDataPoint,
+                datasource.targetRRA or 'AVERAGE',
+                datasource.targetAsRate,
+                targetInfos)],
             targetArgValues=[tuple(targetArgValues)],
-            debug=datasource.debug or zDebug,
-        )
+            debug=datasource.debug or zDebug)
 
     @inlineCallbacks
     def collect(self, config, datasource, rrdcache, collectionTime):
@@ -188,42 +230,43 @@ class AggregatingDataSourcePlugin(object):
         data = {}
         debug = datasource.params.get('debug', None)
 
-        #Aggregate datasources only have one target datapoint config
+        # Aggregate datasources only have one target datapoint config.
         targetDatasource, targetDatapoint, targetRRA, targetAsRate, targets = datasource.params['targetDatapoints'][0]
 
-        targetValues, errors = yield self.getLastValues(rrdcache,
-                                                targetDatasource,
-                                                targetDatapoint,
-                                                targetRRA,
-                                                targetAsRate,
-                                                datasource.cycletime*5,
-                                                datasource.params['targets'])
+        targetValues, errors = yield self.getLastValues(
+            rrdcache, targetDatasource, targetDatapoint, targetRRA,
+            targetAsRate, datasource.cycletime*5, targets)
 
-        logMethod = log.error if debug else log.debug
+        logMethod = LOG.error if debug else LOG.debug
         for ex, msg in errors:
             logMethod('%s: %s', msg, ex)
 
         if not targetValues:
             if targets:
-                msg = "No target values collected for datasource %s" % dsKey(datasource)
+                msg = "No target values collected for datasource {ds_key}".format(
+                    ds_key=get_ds_key(datasource))
+
+                severity = ZenEventClasses.Info if debug else ZenEventClasses.Debug
+
                 collectedEvents.append({
                     'summary': msg,
                     'eventKey': 'aggregatingDataSourcePlugin_novalues',
-                    'severity': ZenEventClasses.Info if debug else ZenEventClasses.Debug,
-                })
-                logMethod = log.info if debug else log.debug
+                    'severity': severity})
+
+                logMethod = LOG.info if debug else LOG.debug
                 logMethod(msg)
 
             returnValue({
                 'events': collectedEvents,
-                'values': collectedValues,
-            })
+                'values': collectedValues})
 
         for datapoint in datasource.points:
             try:
                 aggregate, adjustedTargetValues = yield self.performAggregation(
                     datapoint.operation,
-                    handleArguments(datasource.params['targetArgValues'][0], datapoint.arguments),
+                    handleArguments(
+                        datasource.params['targetArgValues'][0],
+                        datapoint.arguments),
                     targetValues)
             except AggregationError as e:
                 prefix = "aggregation error for {}_{}".format(
@@ -234,23 +277,23 @@ class AggregatingDataSourcePlugin(object):
                     'severity': ZenEventClasses.Error,
                     'summary': "{}: {}".format(prefix, e.summary),
                     'message': "{}: {}".format(prefix, e.message),
-                    'eventClass': datasource.eventClass,
-                    })
+                    'eventClass': datasource.eventClass})
 
                 continue
 
             if debug:
-                log.debug(
+                LOG.debug(
                     "Aggregate value %s calculated for datapoint %s_%s on %s:%s",
                     str(aggregate), datasource.datasource, datapoint.id,
                     datasource.device, datasource.component)
 
-            #stash values for the threshold to put in event details
-            threshold_cache[getThresholdCacheKey(datasource, datapoint)] = adjustedTargetValues
+            # Stash values for the threshold to put in event details.
+            threshold_cache_key = getThresholdCacheKey(datasource, datapoint)
+            THRESHOLD_CACHE[threshold_cache_key] = adjustedTargetValues
 
             collectedValues.setdefault(datasource.component, {})
-            collectedValues[datasource.component]['_'.join((datasource.datasource, datapoint.id))] = \
-                (aggregate, collectionTime)
+            collectedValues[datasource.component]['_'.join(
+                (datasource.datasource, datapoint.id))] = (aggregate, collectionTime)
 
         data['events'] = collectedEvents
         data['values'] = collectedValues
@@ -258,13 +301,18 @@ class AggregatingDataSourcePlugin(object):
         returnValue(data)
 
     @inlineCallbacks
-    def getLastValues(self, rrdcache, datasource, datapoint, rra='AVERAGE', rate=False, cycleTime=300, targets=()):
+    def getLastValues(
+            self, rrdcache, datasource, datapoint,
+            rra='AVERAGE', rate=False, cycleTime=300, targets=()):
         values = {}
         errors = []
         for chunk in grouper(RRD_READ_CHUNKS, targets):
-            chunkDict, chunkErrors = yield rrdcache.getLastValues(datasource, datapoint, rra, rate, cycleTime*5, chunk)
+            chunkDict, chunkErrors = yield rrdcache.getLastValues(
+                datasource, datapoint, rra, rate, cycleTime*5, chunk)
+
             values.update(chunkDict)
             errors.extend(chunkErrors)
+
         returnValue((values, errors))
 
     def performAggregation(self, operationId, arguments, targetValues):
@@ -291,11 +339,11 @@ class AggregatingDataSourcePlugin(object):
 
 
 class AggregationError(Exception):
+
     def __init__(self, summary, message=None):
         Exception.__init__(self, summary)
         self.summary = summary
         self.message = message or summary
-
 
 
 class CalculatedDataSourcePlugin(object):
@@ -315,13 +363,12 @@ class CalculatedDataSourcePlugin(object):
         config = {
             'expression': datasource.expression,
             'debug': datasource.debug or zDebug,
-            'template': datasource.rrdTemplate().getPrimaryId(),
-        }
+            'template': datasource.rrdTemplate().getPrimaryId()}
 
         attrs = {}
         targetDatapoints = {}
 
-        # keep track of all datapoints from all targets so we can avoid
+        # Keep track of all datapoints from all targets so we can avoid
         # looking for an attribute when we have found a datapoint by name on
         # an earlier target already.
         combinedDatapoints = {}
@@ -348,33 +395,37 @@ class CalculatedDataSourcePlugin(object):
                 if att in allDatapointsByVarName:
                     datapoint = allDatapointsByVarName[att]
                     fqdpn = '%s_%s' % (datapoint.datasource().id, datapoint.id)
-                    targetDatapoints[fqdpn] = (datapoint.datasource().id,
-                                               datapoint.id,
-                                               'AVERAGE',
-                                               datasource.targetAsRate,
-                                               [targetInfo(target)])
+                    targetDatapoints[fqdpn] = (
+                        datapoint.datasource().id,
+                        datapoint.id,
+                        'AVERAGE',
+                        datasource.targetAsRate,
+                        [targetInfo(target)])
 
                 elif att not in combinedDatapoints:
                     value = dotTraverse(target, att)
                     if not CalculatedDataSourcePlugin.isPicklable(value):
-                        log.error("Calculated Performance expression %s references "
-                                  "invalid attribute (unpicklable value) %s" % (
-                                  datasource.expression, att))
+                        LOG.error(
+                            "Calculated Performance expression %s references "
+                            "invalid attribute (unpicklable value) %s",
+                            datasource.expression, att)
                         return config
 
-                    # only store None if we finished and never found
-                    # a more interesting value
+                    # Only store None if we finished and never found
+                    # a more interesting value.
                     if value is not None:
                         attrs[att] = value
                     elif att not in attrs and not hasMore:
                         attrs[att] = value
-                        log.warn("Calculated Performance expression %s references "
-                                 "the variable %s which is not in %s on the targets %s" % (
-                                 datasource.expression, att,
-                                 combinedDatapoints.keys(), allTargets))
+                        LOG.warn(
+                            "Calculated Performance expression %s references "
+                            "the variable %s which is not in %s on the targets %s",
+                            datasource.expression, att,
+                            combinedDatapoints.keys(), allTargets)
 
         config['obj_attrs'] = attrs
         config['targetDatapoints'] = targetDatapoints.values()
+
         return config
 
     @inlineCallbacks
@@ -385,7 +436,7 @@ class CalculatedDataSourcePlugin(object):
         debug = datasource.params.get('debug', None)
 
         if expression:
-            # We will populate this with perf metrics and pass to eval()
+            # We will populate this with perf metrics and pass to eval().
             devdict = createDeviceDictionary(datasource.params['obj_attrs'])
             rrdValues = {}
             datapointDict = {}
@@ -393,24 +444,21 @@ class CalculatedDataSourcePlugin(object):
 
             for targetDatasource, targetDatapoint, targetRRA, targetAsRate, targets in datasource.params['targetDatapoints']:
                 try:
-                    value = yield rrdcache.getLastValue(targetDatasource,
-                                                        targetDatapoint,
-                                                        targetRRA,
-                                                        targetAsRate,
-                                                        datasource.cycletime*5,
-                                                        targets[0])
-
+                    value = yield rrdcache.getLastValue(
+                        targetDatasource, targetDatapoint, targetRRA,
+                        targetAsRate, datasource.cycletime*5, targets[0])
                 except StandardError as ex:
                     description = dsDescription(datasource, devdict)
                     msg = "Failure before evaluation, %s" % description
+                    severity = ZenEventClasses.Error if debug else ZenEventClasses.Debug
                     collectedEvents.append({
                         'eventKey': 'calculatedDataSourcePlugin_result',
-                        'severity': ZenEventClasses.Error if debug else ZenEventClasses.Debug,
-                        'summary': msg,
-                    })
-                    logMethod = log.error if debug else log.debug
+                        'severity': severity,
+                        'summary': msg})
+
+                    logMethod = LOG.error if debug else LOG.debug
                     logMethod(msg + "\n%s", ex)
-                    log.exception(ex)
+                    LOG.exception(ex)
                     continue
 
                 # Datapoints can be specified in the following ways:
@@ -460,33 +508,44 @@ class CalculatedDataSourcePlugin(object):
                 try:
                     result = eval(expression, devdict)
                     if debug:
-                        log.debug("Evaluation successful, result is %s for %s" % (result, description))
+                        LOG.debug(
+                            "Evaluation successful, result is %s for %s",
+                            result, description)
                 except ZeroDivisionError:
-                    msg = "Evaluation failed due to attempted division by zero, %s" % description
+                    msg = (
+                        "Evaluation failed due to attempted "
+                        "division by zero, {descr}".format(
+                            descr=description))
+
+                    severity = ZenEventClasses.Error if debug else ZenEventClasses.Debug
                     collectedEvents.append({
                         'eventKey': 'calculatedDataSourcePlugin_result',
-                        'severity': ZenEventClasses.Error if debug else ZenEventClasses.Debug,
-                        'summary': msg,
-                    })
-                    logMethod = log.warn if debug else log.debug
+                        'severity': severity,
+                        'summary': msg})
+
+                    logMethod = LOG.warn if debug else LOG.debug
                     logMethod(msg)
                 except (TypeError, Exception) as ex:
-                    msg = "Evaluation failed due to %s, %s" % (ex.message, description)
+                    msg = "Evaluation failed due to {msg}, {descr}".format(
+                        msg=ex.message, descr=description)
+                    severity = ZenEventClasses.Error if debug else ZenEventClasses.Debug
                     collectedEvents.append({
                         'eventKey': 'calculatedDataSourcePlugin_result',
-                        'severity': ZenEventClasses.Error if debug else ZenEventClasses.Debug,
-                        'summary': msg,
-                    })
-                    logMethod = log.exception if debug else log.debug
+                        'severity': severity,
+                        'summary': msg})
+
+                    logMethod = LOG.exception if debug else LOG.debug
                     logMethod(msg + "\n%s", ex)
             else:
-                logMethod = log.warn if debug else log.debug
-                logMethod("Can't get RRD values for EXPR: %s --> DS: %s" % (expression, dsKey(datasource)))
+                logMethod = LOG.warn if debug else LOG.debug
+                logMethod(
+                    "Can't get RRD values for EXPR: %s --> DS: %s",
+                    expression, get_ds_key(datasource))
 
             if result is not None:
                 collectedValues.setdefault(datasource.component, {})
-                collectedValues[datasource.component]['_'.join((datasource.datasource, datasource.points[0].id))] = \
-                    (result, collectionTime)
+                collectedValues[datasource.component]['_'.join(
+                    (datasource.datasource, datasource.points[0].id))] = (result, collectionTime)
 
         data = {
             'events': collectedEvents,
@@ -504,12 +563,17 @@ DerivedProxyMap = {
 class DerivedDataSourceProxyingPlugin(PythonDataSourcePlugin):
 
     # List of device attributes you'll need to do collection.
-    proxy_attributes = tuple(chain(*map(lambda x:getattr(x, 'proxy_attributes', ()),
-                                        DerivedProxyMap.values())))
+    proxy_attributes = tuple(chain(*map(
+        lambda x: getattr(x, 'proxy_attributes', ()),
+        DerivedProxyMap.values())))
 
-    def __init__(self):
-        #This is a per-run cache of latest RRD values by path+RRA, used in case of multiple
-        #different aggregated datapoints on a single target datasource.
+    def __init__(self, config):
+        self.log = ContextLogAdapter(
+            LOG, {'context': '{} ({}):'.format(
+                self.__class__.__name__, config.id)})
+        # This is a per-run cache of latest RRD values by path+RRA,
+        # used in case of multiple different aggregated datapoints
+        # on a single target datasource.
         self.rrdcache = getReadThroughCache()
 
     @classmethod
@@ -526,12 +590,12 @@ class DerivedDataSourceProxyingPlugin(PythonDataSourcePlugin):
 
         You can omit this method from your implementation entirely if this
         default uniqueness behavior fits your needs. In many cases it will.
+
         """
         return (
             context.device().id,
             datasource.getCycleTime(context),
-            datasource.plugin_classname,
-        )
+            datasource.plugin_classname)
 
     @classmethod
     def params(cls, datasource, context):
@@ -544,50 +608,50 @@ class DerivedDataSourceProxyingPlugin(PythonDataSourcePlugin):
         If you only need extra
         information at the device level it is easier to just use
         proxy_attributes as mentioned above.
-        """
-        proxyParams = DerivedProxyMap[datasource.__class__.__name__].__class__.params(datasource, context)
-        proxyParams['datasourceClassName'] = datasource.__class__.__name__
-        return proxyParams
 
+        """
+        ds_plugin = DerivedProxyMap[datasource.__class__.__name__]
+        proxy_params = ds_plugin.__class__.params(datasource, context)
+        proxy_params['datasourceClassName'] = datasource.__class__.__name__
+        return proxy_params
+
+    @async_timeit(LOG, msg_prefix="Metric collection")
     @inlineCallbacks
-    def collect(self, config):
+    def _collect(self, config, datasources):
+        self.log.debug("Collecting metrics")
+
         collectedEvents = []
         collectedValues = {}
         collectedMaps = []
+        collected_ds_count = defaultdict(int)
 
-        datasourcesByKey = {dsKey(ds): ds for ds in config.datasources}
-        # if we are able prefetch all the metrics that we can
-        if hasattr(self.rrdcache, "batchFetchMetrics"):
-            datasources = [datasourcesByKey.get(ds) for ds in toposort(config.datasources, datasourcesByKey) if datasourcesByKey.get(ds)]
-            yield self.rrdcache.batchFetchMetrics(datasources)
-
-        startCollectTime = time.time()
-        sourcetypes = defaultdict(int)
-        for dskey in toposort(config.datasources, datasourcesByKey):
-            datasource = datasourcesByKey.get(dskey, None)
-            if datasource is None or \
-                    'datasourceClassName' not in datasource.params or \
-                    datasource.params['datasourceClassName'] not in DerivedProxyMap:
-                #Not our datasource, it's a dependency from elsewhere
-                #log.warn("not using ds: %s %s %s", dskey, datasource, datasource.params.__dict__)
+        for ds in datasources:
+            if 'datasourceClassName' not in ds.params or \
+                    ds.params['datasourceClassName'] not in DerivedProxyMap:
+                # Not our datasource, it's a dependency from elsewhere.
                 continue
 
             collectionTime = time.time()
 
-            dsResult = yield DerivedProxyMap[datasource.params['datasourceClassName']].collect(
-                config, datasource, self.rrdcache, int(collectionTime))
+            ds_plugin = DerivedProxyMap[ds.params['datasourceClassName']]
+            dsResult = yield ds_plugin.collect(
+                config, ds, self.rrdcache, int(collectionTime))
 
             if dsResult:
-                # Data for this collection won't be written until the current task
-                # is entirely complete. To allow derivations of derivations to complete in
-                # a single collection cycle, we'll artificially cache the values here for
-                # every possible RRA. These values may be slightly inaccurate, as we're
-                # essentially always using the 'LAST' RRA.
-                resultValues = dsResult.get('values', {}).get(datasource.component, {})
+                # Data for this collection won't be written until
+                # the current task is entirely complete. To allow derivations
+                # of derivations to complete in a single collection cycle,
+                # we'll artificially cache the values here for every
+                # possible RRA. These values may be slightly inaccurate,
+                # as we're essentially always using the 'LAST' RRA.
+                resultValues = dsResult.get('values', {}).get(
+                    ds.component, {})
+
                 if resultValues:
-                    collectedPoints = (p for p in datasource.points
-                                       if p.id in resultValues or \
-                                          '_'.join((datasource.datasource, p.id)) in resultValues)
+                    collectedPoints = (
+                        p for p in ds.points
+                        if p.id in resultValues or '_'.join(
+                        (ds.datasource, p.id)) in resultValues)
 
                     for datapoint in collectedPoints:
                         rrdPath = datapoint.rrdPath.rsplit('/', 1)[0]
@@ -598,71 +662,88 @@ class DerivedDataSourceProxyingPlugin(PythonDataSourcePlugin):
                         else:
                             contextUUID = rrdPath
 
-                        value = (resultValues.get(datapoint.id, None) or
-                                 resultValues.get('_'.join((datasource.datasource, datapoint.id))))[0]
-                        for rra in ('AVERAGE', 'MIN', 'MAX', 'LAST'):
-                            self.rrdcache.put(datasource.datasource, datapoint.id, rra, rrdPath, contextUUID, value)
+                        value = (
+                            resultValues.get(datapoint.id, None) or
+                            resultValues.get('_'.join(
+                                (ds.datasource, datapoint.id))))[0]
 
-                #incorporate results returned from the proxied method
+                        for rra in ('AVERAGE', 'MIN', 'MAX', 'LAST'):
+                            self.rrdcache.put(
+                                ds.datasource, datapoint.id, rra,
+                                rrdPath, contextUUID, value)
+
+                # Incorporate results returned from the proxied method.
                 collectedEvents.extend(dsResult.get('events', []))
                 collectedMaps.extend(dsResult.get('maps', []))
-                collectedValues.setdefault(datasource.component, {})
-                collectedValues[datasource.component].update(resultValues)
-                dsclassname = datasource.params['datasourceClassName']
-                sourcetypes[dsclassname] += 1
+                collectedValues.setdefault(ds.component, {})
+                collectedValues[ds.component].update(resultValues)
+                ds_class_name = ds.params['datasourceClassName']
+                collected_ds_count[ds_class_name] += 1
 
-        endCollectTime = time.time()
-        timeTaken = endCollectTime - startCollectTime
-        timeLogFn = log.debug
-        if timeTaken > 60.0 :
-            timeLogFn = log.warn
-        timeLogFn("  Took %.1f seconds to collect datasources: %s", timeTaken, sourcetypes)
+        self.log.debug("Collected datasources: %s", collected_ds_count)
 
-        data = {
+        returnValue({
             'events': collectedEvents,
             'values': collectedValues,
-            'maps': collectedMaps,}
+            'maps': collectedMaps})
+
+    @inlineCallbacks
+    def collect(self, config):
+        sorted_datasources = list(toposort(config.datasources))
+
+        # If we are able prefetch all the metrics that we can.
+        if hasattr(self.rrdcache, "batchFetchMetrics"):
+            yield self.rrdcache.batchFetchMetrics(sorted_datasources)
+
+        data = yield self._collect(config, sorted_datasources)
+
+        self.log.debug("Returned data: %s", data)
 
         returnValue(data)
 
     def onComplete(self, result, config):
         """Called last for success and error."""
-        # Clear our cached RRD data.
+        self.log.debug(
+            "Data collection completed, clearing out the cached metrics")
         self.rrdcache.invalidate()
 
         return result
 
     def cleanup(self, config):
-        """
-        Called when collector exits, or task is deleted or changed.
-        """
+        """Called when collector exits, or task is deleted or changed."""
+        self.log.debug("Clearing out the threshold cache")
         for datasource in config.datasources:
             for datapoint in datasource.points:
-                threshold_cache_key = getThresholdCacheKey(datasource, datapoint)
-                if threshold_cache_key in threshold_cache:
-                    del threshold_cache[threshold_cache_key]
+                threshold_cache_key = getThresholdCacheKey(
+                    datasource, datapoint)
+
+                if threshold_cache_key in THRESHOLD_CACHE:
+                    del THRESHOLD_CACHE[threshold_cache_key]
         return
 
 
 @monkeypatch('Products.ZenModel.MinMaxThreshold.MinMaxThresholdInstance')
 def processEvent(self, evt):
     """
-    event_dict = dict(device=self.context().deviceName,        < !-------------
-                      summary=summary,
-                      eventKey=self.id,                        < !-------------
-                      eventClass=self.eventClass,
-                      component=self.context().componentName,  < !-------------
-                      min=self.minimum,                        < !-------------
-                      max=self.maximum,                        < !-------------
-                      current=current,                         < !-------------
-                      severity=severity,
-                      datapoint=datapoint)                     < !-------------
+    event_dict = dict(
+        device=self.context().deviceName,        < !-------------
+        summary=summary,
+        eventKey=self.id,                        < !-------------
+        eventClass=self.eventClass,
+        component=self.context().componentName,  < !-------------
+        min=self.minimum,                        < !-------------
+        max=self.maximum,                        < !-------------
+        current=current,                         < !-------------
+        severity=severity,
+        datapoint=datapoint)                     < !-------------
 
-    @param evt:
-    @return:
     """
-    values_key = '%s_%s_%s' % (evt['device'], evt['component'], evt.get('datapoint', ''))
-    last_values = threshold_cache.get(values_key, None)
+    values_key = '{device}_{component}_{datapoint}'.format(
+        device=evt['device'],
+        component=evt['component'],
+        datapoint=evt.get('datapoint', ''))
+
+    last_values = THRESHOLD_CACHE.get(values_key, None)
     if last_values:
         violating_elements = []
         for uid, value in last_values.iteritems():

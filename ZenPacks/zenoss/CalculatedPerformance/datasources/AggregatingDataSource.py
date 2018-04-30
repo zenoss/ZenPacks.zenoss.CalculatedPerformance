@@ -1,18 +1,24 @@
+##############################################################################
 #
-# Copyright (C) Zenoss, Inc. 2014-2017, all rights reserved.
+# Copyright (C) Zenoss, Inc. 2014-2018, all rights reserved.
 #
 # This content is made available according to terms specified in
 # License.zenoss under the directory where your Zenoss product is installed.
 #
+##############################################################################
+
 from Globals import InitializeClass
 from AccessControl import ClassSecurityInfo
+
 from Products.ZenModel.RRDDataSource import RRDDataSource
 from Products.ZenModel.ZenossSecurity import ZEN_MANAGE_DMD
 from Products.ZenUtils.FunctionCache import FunctionCache
 from Products.Zuul.utils import safe_hasattr
+
 from ZenPacks.zenoss.CalculatedPerformance import (
     operations, USE_BASIS_INTERVAL, MINIMUM_INTERVAL, MAXIMUM_INTERVAL,)
-from ZenPacks.zenoss.CalculatedPerformance.AggregatingDataPoint import AggregatingDataPoint
+from ZenPacks.zenoss.CalculatedPerformance.AggregatingDataPoint \
+    import AggregatingDataPoint
 from ZenPacks.zenoss.CalculatedPerformance.utils import dotTraverse
 from ZenPacks.zenoss.PythonCollector.datasources.PythonDataSource \
     import PythonDataSource, PythonDataSourcePlugin
@@ -31,7 +37,8 @@ class AggregatingDataSource(PythonDataSource):
     sourcetype = AGGREGATOR_SOURCE_TYPE
 
     # Collection plugin for this type.
-    plugin_classname = 'ZenPacks.zenoss.CalculatedPerformance.dsplugins.DerivedDataSourceProxyingPlugin'
+    plugin_classname = ('ZenPacks.zenoss.CalculatedPerformance.dsplugins.'
+                        'DerivedDataSourceProxyingPlugin')
 
     # Set default values for properties inherited from RRDDataSource.
     eventClass = '/Perf'
@@ -64,8 +71,12 @@ class AggregatingDataSource(PythonDataSource):
 
     def getDescription(self):
         description = self.description or \
-            "Aggregation of %s_%s:%s over %s" % \
-            (self.targetDataSource, self.targetDataPoint, self.targetRRA, self.targetMethod)
+            "Aggregation of {ds}_{dp}:{rra} over {method}".format(
+                ds=self.targetDataSource,
+                dp=self.targetDataPoint,
+                rra=self.targetRRA,
+                method=self.targetMethod)
+
         return description
 
     def getCycleTime(self, context):
@@ -75,8 +86,8 @@ class AggregatingDataSource(PythonDataSource):
             if cycletime is not None:
                 # Enforce user-configured minimum and maximum bounds when
                 # using the basis interval. By default minimumInterval and
-                # maximumInterval are None which results in the basis interval
-                # being used regardless of its value.
+                # maximumInterval are None which results in
+                # the basis interval being used regardless of its value.
                 return operations._bound(
                     minValue=self.minimumInterval,
                     value=cycletime,
@@ -100,15 +111,13 @@ class AggregatingDataSource(PythonDataSource):
 
     security.declareProtected(ZEN_MANAGE_DMD, 'manage_addRRDDataPoint')
     def manage_addRRDDataPoint(self, id, REQUEST=None):
-        """
-        Add a new RRDDataPoint object to this datasource.
-        """
+        """Add a new RRDDataPoint object to this datasource."""
         if not id:
             return self.callZenScreen(REQUEST)
 
-        # TODO: refactor core to use some sort of factory for this junk. This
-        # is all cut & paste code from the base class with the exception of
-        # of the object creation.
+        # TODO: refactor core to use some sort of factory for this junk.
+        # This is all cut & paste code from the base class with
+        # the exception of the object creation.
         dp = AggregatingDataPoint(id)
         if safe_hasattr(operations, id):
             dp.operation = id
@@ -120,6 +129,7 @@ class AggregatingDataSource(PythonDataSource):
                 url = '%s/datapoints/%s' % (self.getPrimaryUrlPath(), dp.id)
                 REQUEST['RESPONSE'].redirect(url)
             return self.callZenScreen(REQUEST)
+
         return dp
 
 

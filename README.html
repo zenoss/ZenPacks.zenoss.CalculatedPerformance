@@ -22,6 +22,15 @@ dd {
 
 <h2 id="releases">Releases</h2>
 
+<dl id="release-2.5.1">
+    <dt>Version 2.5.1 <a class="external" href="http://wiki.zenoss.org/download/zenpacks/ZenPacks.zenoss.CalculatedPerformance/2.5.1/ZenPacks.zenoss.CalculatedPerformance-2.5.1.egg">Download</a></dt>
+    <dd>Released: 2018-04-30</dd>
+    <dd>Compatible with Zenoss 4.2.5 - 6.1.2</dd>
+    <dd>Requires:
+        <a href="/product/zenpacks/pythoncollector">PythonCollector ZenPack (v1.9.0 or later)</a>
+    </dd>
+</dl>
+
 <dl id="release-2.5.0">
     <dt>Version 2.5.0 <a class="external" href="http://wiki.zenoss.org/download/zenpacks/ZenPacks.zenoss.CalculatedPerformance/2.5.0/ZenPacks.zenoss.CalculatedPerformance-2.5.0.egg">Download</a></dt>
     <dd>Released: 2017-10-27</dd>
@@ -273,6 +282,13 @@ class RandomContentsElementPool(ElementPool):
 <p><strong>Zenoss 4 Note</strong>: The auto adjustment of the collection intervals works only on Zenoss 5.</p>
 
 <h2 id="changes">Changes</h2>
+
+<h4 id="changes-2.5.1">2.5.1</h4>
+<ul>
+    <li>Fix missing datapoints on UCS Capacity graphs. (ZPS-3282)</li>
+    <li>Add additional debug logging. (ZPS-3404)</li>
+    <li>Tested with Resource Manager 4.2.5 RPS 743, 5.3.3, 6.1.2</li>
+</ul>
 
 <h4 id="changes-2.5.0">2.5.0</h4>
 <ul>

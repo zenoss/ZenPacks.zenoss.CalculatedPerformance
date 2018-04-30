@@ -1,14 +1,19 @@
+##############################################################################
 #
-# Copyright (C) Zenoss, Inc. 2014, all rights reserved.
+# Copyright (C) Zenoss, Inc. 2015-2018, all rights reserved.
 #
 # This content is made available according to terms specified in
 # License.zenoss under the directory where your Zenoss product is installed.
 #
-"""
-An aggregation method should return both the datapoint,
+##############################################################################
+
+"""An aggregation method should return both the datapoint,
 and the value array with any in-place modification.
+
 """
+
 import math
+
 
 def _amean(values):
     if not values:
@@ -22,7 +27,9 @@ def _median(values):
     values = sorted(values)
     if len(values) % 2 == 0:
         fMidpoint = (len(values) - 1) / 2.0
-        return _amean((values[int(math.floor(fMidpoint))], values[int(math.ceil(fMidpoint))]))
+        return _amean((
+            values[int(math.floor(fMidpoint))],
+            values[int(math.ceil(fMidpoint))]))
     else:
         fMidpoint = (len(values) - 1) / 2
         return values[fMidpoint]
@@ -40,9 +47,9 @@ def _bound(minValue=None, value=0, maxValue=None):
 
 
 def _nthPercentileRank(n, length):
-    """
-    Find the nth percentile rank in a list. Calculated according to the
-    nearest-rank method.
+    """Find the nth percentile rank in a list. Calculated according
+    to the nearest-rank method.
+
     See: http://en.wikipedia.org/wiki/Percentile#Nearest_rank
 
     Modified to conform to zero-indexing, and to bound results to
@@ -54,13 +61,14 @@ def _nthPercentileRank(n, length):
     See: http://docs.python.org/tutorial/floatingpoint.html#tut-fp-issues
     """
     if 0 <= n <= 100:
-        # this calculation was n/100.0 * length, but has been rearranged to
-        # avoid floating-point representation errors
+        # This calculation was n/100.0 * length, but has been rearranged to
+        # avoid floating-point representation errors.
         rank = int(round((n * length) / 100.0 + 0.5)) - 1
-        # bound result to the bounds of the list
+        # Bound result to the bounds of the list.
         return _bound(0, rank, length-1)
     else:
-        raise ValueError('n must be between 0 and 100, inclusive. Got: %s' % n)
+        raise ValueError(
+            'n must be between 0 and 100, inclusive. Got: %s' % n)
 
 
 def count(valuemap):
@@ -81,6 +89,8 @@ def min(valuemap):
 
 def amean(valuemap):
     return _amean(valuemap.values()), valuemap
+
+
 avg = amean
 
 
@@ -101,11 +111,15 @@ def stddev(valuemap):
     """
     See: http://en.wikipedia.org/wiki/Standard_deviation
 
-    Modifies the valuemap to contain the absolute deviation of the input values
+    Modifies the value map to contain the absolute deviation
+    of the input values.
+
     """
     devs = _deviations(_amean, valuemap.values())
     std = math.sqrt(_amean([math.pow(x, 2) for x in devs]))
     return std, dict(zip(valuemap.keys(), devs))
+
+
 std = stddev
 
 
@@ -113,7 +127,9 @@ def var(valuemap):
     """
     See: http://en.wikipedia.org/wiki/Variance
 
-    Modifies the valuemap to contain the square of the deviation of the input values
+    Modifies the value map to contain the square of the deviation
+    of the input values.
+
     """
     sqDevs = [math.pow(x, 2) for x in _deviations(_amean, valuemap.values())]
     return _amean(sqDevs), dict(zip(valuemap.keys(), sqDevs))
@@ -124,15 +140,19 @@ def mad(valuemap):
     See: http://en.wikipedia.org/wiki/Median_absolute_deviation
     """
     medianDeviations = _absoluteDeviations(_median, valuemap.values())
-    return _median(medianDeviations), dict(zip(valuemap.keys(), medianDeviations))
+    return _median(medianDeviations), dict(
+        zip(valuemap.keys(), medianDeviations))
 
 
 def madmax(valuemap, themax):
     """
     See: http://en.wikipedia.org/wiki/Median_absolute_deviation
     """
-    medianDeviations = _absoluteDeviations(_median, map(lambda x: x if x < themax else themax or 0, valuemap.values()))
-    return _median(medianDeviations), dict(zip(valuemap.keys(), medianDeviations))
+    medianDeviations = _absoluteDeviations(
+        _median, map(
+            lambda x: x if x < themax else themax or 0, valuemap.values()))
+    return _median(medianDeviations), dict(
+        zip(valuemap.keys(), medianDeviations))
 
 
 def percentile(valuemap, n):
@@ -157,4 +177,4 @@ VALID_OPERATIONS = [
     'mad',
     'madmax',
     'percentile',
-    ]
+]

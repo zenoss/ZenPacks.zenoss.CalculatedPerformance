@@ -1,13 +1,13 @@
 ##############################################################################
 #
-# Copyright (C) Zenoss, Inc. 2017, all rights reserved.
+# Copyright (C) Zenoss, Inc. 2017-2018, all rights reserved.
 #
 # This content is made available according to terms specified in
 # License.zenoss under the directory where your Zenoss product is installed.
 #
 ##############################################################################
 
-"""Tests for CalculatedPerformanceDataSource."""
+"""Tests for AggregatingDataSource."""
 
 # Zenoss Imports
 from Products.ZenModel.BasicDataSource import BasicDataSource
@@ -24,11 +24,11 @@ from ZenPacks.zenoss.CalculatedPerformance.datasources.AggregatingDataSource \
 
 
 class TestAggregatingDataSource(BaseTestCase):
-
-    """Test suite for CalculatedPerformanceDataSource."""
+    """Test suite for AggregatingDataSource."""
 
     def test_getCycleTime(self):
-        deviceclass = self.dmd.Devices.createOrganizer("/Test/CalculatedPerformance")
+        deviceclass = self.dmd.Devices.createOrganizer(
+            "/Test/CalculatedPerformance")
         deviceclass.setZenProperty("zCollectorClientTimeout", 20)
 
         # Basis datasources.
