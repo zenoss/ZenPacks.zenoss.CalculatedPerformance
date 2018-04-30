@@ -1,20 +1,20 @@
+##############################################################################
 #
-# Copyright (C) Zenoss, Inc. 2014-2017, all rights reserved.
+# Copyright (C) Zenoss, Inc. 2014-2018, all rights reserved.
 #
 # This content is made available according to terms specified in
 # License.zenoss under the directory where your Zenoss product is installed.
 #
+##############################################################################
 
 import Globals
 
 import unittest
-import time
-
-from collections import deque
 
 from Products.ZenTestCase.BaseTestCase import BaseTestCase
 
-from ZenPacks.zenoss.CalculatedPerformance.ReadThroughCache import getReadThroughCache
+from ZenPacks.zenoss.CalculatedPerformance.ReadThroughCache \
+    import getReadThroughCache
 
 
 def mockReturnValue(value):
@@ -42,7 +42,8 @@ class TestRRDReadThroughCache(BaseTestCase):
         self.assertIn(testKey, cache._cache)
         self.assertEqual(
             cache.getLastValue(
-                'ds', 'dp', 'rra', False, 1, {'rrdpath': 'perf/path', 'uuid': 1}),
+                'ds', 'dp', 'rra', False, 1,
+                {'rrdpath': 'perf/path', 'uuid': 1}),
             42.0)
 
     def testGetLastValue(self):
@@ -52,13 +53,15 @@ class TestRRDReadThroughCache(BaseTestCase):
         self.assertNotIn(testKey, cache._cache)
         self.assertEqual(
             cache.getLastValue(
-                'ds', 'dp', 'rra', False, 1, {'rrdpath': 'perf/path', 'uuid': 1}),
+                'ds', 'dp', 'rra', False, 1,
+                {'rrdpath': 'perf/path', 'uuid': 1}),
             54.11)
         self.assertIn(testKey, cache._cache)
         cache._readLastValue = mockReturnValue(65.43)
         self.assertEqual(
             cache.getLastValue(
-                'ds', 'dp', 'rra', False, 1, {'rrdpath': 'perf/path', 'uuid': 1}),
+                'ds', 'dp', 'rra', False, 1,
+                {'rrdpath': 'perf/path', 'uuid': 1}),
             54.11)
 
     def testGetLastValues(self):
@@ -73,7 +76,8 @@ class TestRRDReadThroughCache(BaseTestCase):
         for testKey in testKeys:
             self.assertNotIn(testKey, cache._cache)
 
-        expectedValues = cache.getLastValues('ds', 'dp', 'rra', False, 1, targets)[0]
+        expectedValues = cache.getLastValues(
+            'ds', 'dp', 'rra', False, 1, targets)[0]
         self.assertDictEqual(
             {k: v for k, v in expectedValues.iteritems()},
             {'1': 54.11, '2': 54.11})
@@ -82,20 +86,21 @@ class TestRRDReadThroughCache(BaseTestCase):
             self.assertIn(testKey, cache._cache)
 
         cache._readLastValue = mockReturnValue(65.43)
-        expectedValues = cache.getLastValues('ds', 'dp', 'rra', False, 1, targets)[0]
+        expectedValues = cache.getLastValues(
+            'ds', 'dp', 'rra', False, 1, targets)[0]
         self.assertDictEqual(
             {k: v for k, v in expectedValues.iteritems()},
             {'1': 54.11, '2': 54.11})
 
         cache._readLastValue = mockReturnValue(None)
-        expectedValues = cache.getLastValues('ds', 'dp', 'rra', False, 1, targets)[0]
+        expectedValues = cache.getLastValues(
+            'ds', 'dp', 'rra', False, 1, targets)[0]
         self.assertDictEqual(
             {k: v for k, v in expectedValues.iteritems()},
             {'1': 54.11, '2': 54.11})
 
     def testInvalidate(self):
         cache = getReadThroughCache()
-
         testKey = self._getKey('ds', 'dp', 'rra', 'perf/path', '1')
 
         cache.put('ds', 'dp', 'rra', 'perf/path', '1', 42.0)
@@ -110,7 +115,8 @@ class TestRRDReadThroughCache(BaseTestCase):
         cache._readLastValue = mockReturnValue(54.11)
         self.assertEqual(
             cache.getLastValue(
-                'ds', 'dp', 'rra', False, 1, {'rrdpath': 'perf/path', 'uuid': 1}),
+                'ds', 'dp', 'rra', False, 1,
+                {'rrdpath': 'perf/path', 'uuid': 1}),
             54.11)
         self.assertIn(testKey, cache._cache)
         cache.invalidate(testKey)
@@ -118,7 +124,8 @@ class TestRRDReadThroughCache(BaseTestCase):
 
         self.assertEqual(
             cache.getLastValue(
-                'ds', 'dp', 'rra', False, 1, {'rrdpath': 'perf/path', 'uuid': 1}),
+                'ds', 'dp', 'rra', False, 1,
+                {'rrdpath': 'perf/path', 'uuid': 1}),
             54.11)
         self.assertIn(testKey, cache._cache)
         cache.invalidate()

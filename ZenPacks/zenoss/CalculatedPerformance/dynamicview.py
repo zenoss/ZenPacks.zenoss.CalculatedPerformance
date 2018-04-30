@@ -1,6 +1,6 @@
 ##############################################################################
 #
-# Copyright (C) Zenoss, Inc. 2015, all rights reserved.
+# Copyright (C) Zenoss, Inc. 2015-2018, all rights reserved.
 #
 # This content is made available according to terms specified in
 # License.zenoss under the directory where your Zenoss product is installed.
@@ -16,7 +16,6 @@ conditional ZCML section in configure.zcml.
 """
 
 import logging
-LOG = logging.getLogger('zen.CalculatedPerformance')
 
 from zope.component import adapts
 from zope.interface import implements
@@ -28,8 +27,10 @@ from ZenPacks.zenoss.DynamicView.model.adapters import BaseRelationsProvider
 from .ElementPool import ElementPool
 
 
-class ElementPoolRelationsProvider(BaseRelationsProvider):
+LOG = logging.getLogger('zen.CalculatedPerformance')
 
+
+class ElementPoolRelationsProvider(BaseRelationsProvider):
     """DynamicView IRelationsProvider adaptor factory for ElementPool."""
 
     implements(IRelationsProvider)

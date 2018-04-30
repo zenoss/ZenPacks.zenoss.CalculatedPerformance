@@ -1,6 +1,6 @@
 ##############################################################################
 #
-# Copyright (C) Zenoss, Inc. 2015, all rights reserved.
+# Copyright (C) Zenoss, Inc. 2015-2018, all rights reserved.
 #
 # This content is made available according to terms specified in
 # License.zenoss under the directory where your Zenoss product is installed.
@@ -40,7 +40,6 @@ def relation_tuples_for(obj, tags=None):
         tags = (TAG_IMPACTED_BY, TAG_IMPACTS)
 
     relation_tuples = set()
-
     relatable = IRelatable(obj)
 
     for tag in tags:
@@ -57,7 +56,6 @@ def relation_tuples_for(obj, tags=None):
 
 @unittest.skipUnless(DYNAMICVIEW_INSTALLED, "DynamicView not installed")
 class TestDynamicView(BaseTestCase):
-
     """Test suite for DynamicView adapters."""
 
     def afterSetUp(self):
@@ -72,7 +70,8 @@ class TestDynamicView(BaseTestCase):
 
         # Load our own ZCML.
         import ZenPacks.zenoss.CalculatedPerformance
-        zcml.load_config('configure.zcml', ZenPacks.zenoss.CalculatedPerformance)
+        zcml.load_config(
+            'configure.zcml', ZenPacks.zenoss.CalculatedPerformance)
 
     def assertExactRelations(self, obj, expected):
         """Assert that obj has expected relations and no more."""
@@ -136,7 +135,8 @@ class TestDynamicView(BaseTestCase):
         from Products.ZenUtils.guid.interfaces import IGlobalIdentifier
         eth0_guid = IGlobalIdentifier(eth0).getGUID()
 
-        from ZenPacks.zenoss.CalculatedPerformance.ElementPool import ElementPool
+        from ZenPacks.zenoss.CalculatedPerformance.ElementPool \
+            import ElementPool
         pool0 = ElementPool('pool0')
         device.aggregatingPools._setObject(pool0.id, pool0)
         pool0 = device.aggregatingPools._getOb(pool0.id)
@@ -144,7 +144,5 @@ class TestDynamicView(BaseTestCase):
 
         self.assertExactRelations(
             pool0, {
-                TAG_IMPACTED_BY: [
-                    'eth0',
-                    ],
+                TAG_IMPACTED_BY: ['eth0'],
             })
