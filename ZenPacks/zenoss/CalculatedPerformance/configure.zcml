@@ -52,28 +52,6 @@
            for="*"
            />
 
-    <!-- DynamicView -->
-    <configure zcml:condition="installed ZenPacks.zenoss.DynamicView">
-        <subscriber
-            provides="ZenPacks.zenoss.DynamicView.interfaces.IRelationsProvider"
-            for=".ElementPool.ElementPool"
-            factory=".dynamicview.ElementPoolRelationsProvider"
-            />
-
-    </configure>
-
-    <!-- Impact -->
-    <configure zcml:condition="installed ZenPacks.zenoss.Impact">
-        <include package="ZenPacks.zenoss.Impact" file="meta.zcml"/>
-
-        <subscriber
-            provides="ZenPacks.zenoss.Impact.impactd.interfaces.IRelationshipDataProvider"
-            for=".ElementPool.ElementPool"
-            factory=".impact.ElementPoolRelationsProvider"
-            />
-
-    </configure>
-
     <!-- Custom Form Builders -->
     <adapter provides="Products.Zuul.form.interfaces.IFormBuilder"
          for=".info.ElementPoolInfo"
