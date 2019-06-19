@@ -272,6 +272,8 @@ class RandomContentsElementPool(ElementPool):
 
 <p>Derived datapoints are only based on the most recent available data from target datapoints. This is limited to data up to 5*cycleTime seconds in the past. If a target datapoint does not exist on the target element, or has not been collected in the recent past, that element will be excluded from the calculation. This may mean that fewer datapoints than desired are used in the calculation (for aggregate datapoints), or that the overall result cannot be calculated at all. An event will be sent when this occurs.</p>
 
+<p><strong>Datasource Naming Note</strong>: It is important to ensure that you don't create datasources and datapoint name combinations that conflict with others on the same device or component.</p>
+
 <p><strong>Zenoss 4 Note</strong>: Performance data is stored locally on the collector. So only data from devices and components on the same collector can be aggregated. This is not a limitation in Zenoss 5.</p>
 
 <h2 id="auto-adjustment-of-the-collection-intervals">Auto Adjustment of the Collection Intervals</h2>
